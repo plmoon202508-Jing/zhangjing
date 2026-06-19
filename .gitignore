@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# Android
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+.gradle/
+local.properties
+.idea/
+*.iml
+*.hprof
+android/.gradle/
+android/gradle-app.setting
+android/local.properties
+android/build/
+android/app/build/
+android/app/release/
+
+# Web
+node_modules/
+web/shots/

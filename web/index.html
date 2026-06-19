@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>亚信卫星时刻</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- 全局粒子星空背景 -->
+  <canvas id="starfield"></canvas>
+
+  <!-- 手机外框 (用于在桌面浏览器中模拟手机) -->
+  <div class="device-frame">
+    <div class="device-notch"></div>
+    <div id="app">
+
+      <!-- ============ 页面1: 主启动页 ============ -->
+      <section class="view view--home is-active" data-view="home">
+        <div class="home-glow"></div>
+        <div class="home-content">
+          <div class="brand">
+            <div class="brand-logo">
+              <img src="images/asiainfo-logo.png" alt="亚信logo" class="logo-img" />
+            </div>
+            <h1 class="brand-title">亚信卫星时刻</h1>
+            <p class="brand-sub">ASIAINFO · SATELLITE MOMENT</p>
+          </div>
+
+          <div class="home-buttons">
+            <button class="holo-btn holo-btn--primary" data-nav="constellation">
+              <span class="holo-btn__icon">
+                <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 0c3 3 3 17 0 20m0-20c-3 3-3 17 0 20M2 12h20" /></svg>
+              </span>
+              <span class="holo-btn__text">
+                <strong>星座全景</strong>
+                <small>地球卫星星座可视化</small>
+              </span>
+              <span class="holo-btn__arrow">→</span>
+            </button>
+
+            <button class="holo-btn holo-btn--accent" data-nav="ar">
+              <span class="holo-btn__icon">
+                <svg viewBox="0 0 24 24"><path d="M3 7h3l2-2h8l2 2h3v12H3zM12 17a4 4 0 100-8 4 4 0 000 8z" /></svg>
+              </span>
+              <span class="holo-btn__text">
+                <strong>AR 卫星</strong>
+                <small>实景增强卫星观测</small>
+              </span>
+              <span class="holo-btn__arrow">→</span>
+            </button>
+          </div>
+
+          <button class="ghost-btn" data-nav="share">
+            <svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z"/></svg>
+            生成分享二维码
+          </button>
+        </div>
+        <div class="home-footer">v1.0.0 · 数据来源 CelesTrak</div>
+      </section>
+
+      <!-- ============ 页面2: 星座全景 ============ -->
+      <section class="view view--constellation" data-view="constellation">
+        <canvas id="earth-canvas"></canvas>
+        <header class="top-bar">
+          <button class="icon-btn" data-nav="home">‹</button>
+          <span class="top-bar__title">星座全景</span>
+          <button class="icon-btn" id="toggle-orbits">◎</button>
+        </header>
+
+        <div class="hud hud--top-left">
+          <div class="hud-stat"><span class="hud-stat__num" id="sat-count">0</span><span class="hud-stat__label">在轨卫星</span></div>
+        </div>
+
+        <div class="hud hud--top-right legend" id="legend">
+          <div class="legend-row"><i style="background:#2de2ff"></i><span>星网 GW</span><b id="gw-count">0</b></div>
+          <div class="legend-row"><i style="background:#ff4ecd"></i><span>G60 千帆</span><b id="g60-count">0</b></div>
+          <div class="legend-row"><i style="background:#4dffb8"></i><span>天启</span><b id="tq-count">0</b></div>
+        </div>
+
+        <div class="filter-chips" id="filter-chips">
+          <button class="chip is-active" data-group="all">全部</button>
+          <button class="chip" data-group="GW">星网 GW</button>
+          <button class="chip" data-group="G60">G60 千帆</button>
+          <button class="chip" data-group="TQ">天启</button>
+        </div>
+
+        <div class="loading-ring" id="earth-loading"><div></div><span>正在加载星座数据...</span></div>
+      </section>
+
+      <!-- ============ 页面3: AR 卫星 ============ -->
+      <section class="view view--ar" data-view="ar">
+        <video id="ar-camera" autoplay playsinline muted></video>
+        <div class="ar-fallback" id="ar-fallback">
+          <div class="ar-scan-grid"></div>
+        </div>
+        <canvas id="ar-overlay"></canvas>
+
+        <header class="top-bar top-bar--transparent">
+          <button class="icon-btn" data-nav="home">‹</button>
+          <span class="top-bar__title">AR 卫星</span>
+          <button class="icon-btn" id="ar-recenter">⊕</button>
+        </header>
+
+        <div class="ar-compass" id="ar-compass">
+          <div class="ar-compass__ring">
+            <span class="ar-compass__n">N</span>
+          </div>
+          <span class="ar-compass__deg" id="ar-deg">0°</span>
+        </div>
+
+        <div class="ar-crosshair"></div>
+
+        <div class="ar-hint" id="ar-hint">移动手机扫描天空 · 点击光点查看卫星</div>
+      </section>
+
+      <!-- ============ 页面5: 二维码分享 ============ -->
+      <section class="view view--share" data-view="share">
+        <header class="top-bar">
+          <button class="icon-btn" data-nav="home">‹</button>
+          <span class="top-bar__title">分享体验</span>
+          <span style="width:40px"></span>
+        </header>
+        <div class="share-content">
+          <div class="qr-card">
+            <div class="qr-frame">
+              <canvas id="qr-canvas" width="220" height="220"></canvas>
+              <div class="qr-corner qr-corner--tl"></div>
+              <div class="qr-corner qr-corner--tr"></div>
+              <div class="qr-corner qr-corner--bl"></div>
+              <div class="qr-corner qr-corner--br"></div>
+              <div class="qr-scanline"></div>
+            </div>
+            <p class="qr-title">扫码体验亚信卫星时刻</p>
+            <p class="qr-sub">扫描后需先登记体验者信息</p>
+            <p class="qr-code-text" id="invite-code">邀请码: AISM-000000</p>
+          </div>
+          <button class="holo-btn holo-btn--primary" id="preview-scan" data-nav="form">
+            <span class="holo-btn__text"><strong>模拟扫码进入登记</strong></span>
+            <span class="holo-btn__arrow">→</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ============ 页面6: 用户登记 ============ -->
+      <section class="view view--form" data-view="form">
+        <header class="top-bar">
+          <button class="icon-btn" data-nav="share">‹</button>
+          <span class="top-bar__title">体验登记</span>
+          <span style="width:40px"></span>
+        </header>
+        <div class="form-content">
+          <div class="form-intro">
+            <h2>开启你的卫星之旅</h2>
+            <p>请预留信息，我们将为你解锁完整体验</p>
+          </div>
+          <form id="reg-form" class="holo-form">
+            <label class="field">
+              <span>姓名 *</span>
+              <input type="text" name="name" placeholder="请输入姓名" required />
+            </label>
+            <label class="field">
+              <span>手机号 *</span>
+              <input type="tel" name="phone" placeholder="请输入手机号" required />
+            </label>
+            <label class="field">
+              <span>邮箱</span>
+              <input type="email" name="email" placeholder="请输入邮箱" />
+            </label>
+            <label class="field">
+              <span>公司 / 单位</span>
+              <input type="text" name="company" placeholder="选填" />
+            </label>
+            <p class="form-privacy">提交即表示同意隐私政策，信息仅用于改善产品体验。</p>
+            <button type="submit" class="holo-btn holo-btn--accent holo-btn--block">
+              <span class="holo-btn__text"><strong>提交并开始体验</strong></span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ============ 卫星详情面板 (全局浮层) ============ -->
+  <div class="detail-sheet" id="detail-sheet">
+    <div class="detail-sheet__handle"></div>
+    <div class="detail-sheet__header">
+      <div>
+        <h3 id="d-name">卫星名称</h3>
+        <span class="detail-tag" id="d-tag">通信卫星</span>
+      </div>
+      <button class="icon-btn" id="detail-close">×</button>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-item"><span>NORAD ID</span><strong id="d-norad">-</strong></div>
+      <div class="detail-item"><span>轨道高度</span><strong id="d-alt">-</strong></div>
+      <div class="detail-item"><span>经度</span><strong id="d-lon">-</strong></div>
+      <div class="detail-item"><span>纬度</span><strong id="d-lat">-</strong></div>
+      <div class="detail-item"><span>速度</span><strong id="d-vel">-</strong></div>
+      <div class="detail-item"><span>倾角</span><strong id="d-inc">-</strong></div>
+    </div>
+    <div class="detail-rename">
+      <label class="field">
+        <span>自定义名称</span>
+        <div class="rename-row">
+          <input type="text" id="d-custom" placeholder="给它起个名字" />
+          <button class="holo-btn holo-btn--mini" id="d-save">保存</button>
+        </div>
+      </label>
+    </div>
+  </div>
+  <div class="sheet-backdrop" id="sheet-backdrop"></div>
+
+  <!-- Toast 提示 -->
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="js/vendor/satellite.min.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/starfield.js"></script>
+  <script src="js/earth.js"></script>
+  <script src="js/ar.js"></script>
+  <script src="js/qrcode.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

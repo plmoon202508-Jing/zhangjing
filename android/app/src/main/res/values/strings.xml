@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">亚信卫星时刻</string>
+    <string name="app_subtitle">ASIAINFO · SATELLITE MOMENT</string>
+    <string name="menu_constellation">星座全景</string>
+    <string name="menu_constellation_desc">地球卫星星座可视化</string>
+    <string name="menu_ar">AR 卫星</string>
+    <string name="menu_ar_desc">实景增强卫星观测</string>
+    <string name="menu_share">生成分享二维码</string>
+</resources>

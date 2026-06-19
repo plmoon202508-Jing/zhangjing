@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 核心 -->
+    <path
+        android:fillColor="#2DE2FF"
+        android:pathData="M54,54m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+    <!-- 轨道 -->
+    <path
+        android:strokeColor="#6EF0FF"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:pathData="M54,54m-34,0a34,14 0,1 1,68 0a34,14 0,1 1,-68 0" />
+    <!-- 卫星 -->
+    <path
+        android:fillColor="#FF4ECD"
+        android:pathData="M88,54m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+</vector>
