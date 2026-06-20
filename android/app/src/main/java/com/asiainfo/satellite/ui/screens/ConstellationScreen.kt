@@ -2,6 +2,7 @@ package com.asiainfo.satellite.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -126,7 +127,7 @@ fun ConstellationScreen(
                 }
             } else {
                 SatelliteList(
-                    satellites = filteredSatellites.take(20), // 显示前20个
+                    satellites = filteredSatellites,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(16.dp)
@@ -224,17 +225,19 @@ fun ConstellationFilter(
 }
 
 /**
- * 卫星列表
+ * 卫星列表（可滚动）
  */
 @Composable
 fun SatelliteList(
     satellites: List<Satellite>,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier) {
-        satellites.forEach { satellite ->
+    androidx.compose.foundation.lazy.LazyColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(satellites) { satellite ->
             SatelliteItem(satellite = satellite)
-            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

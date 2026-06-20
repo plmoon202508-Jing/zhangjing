@@ -57,10 +57,11 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
 
-    // 网络 (CelesTrak) - 暂时禁用，使用模拟数据
-    // implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    // implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    // implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // 网络 (CelesTrak TLE)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // 卫星轨道计算 (SGP4 + 站心方位/俯仰)
+    implementation("com.github.davidmoten:predict4java:1.3.1")
 
     // 二维码
     implementation("com.google.zxing:core:3.5.3")
@@ -68,8 +69,11 @@ dependencies {
     // 位置服务
     implementation("com.google.android.gms:play-services-location:21.1.0")
 
-    // AR (后续阶段启用)
-    // implementation("com.google.ar:core:1.42.0")
+    // 相机 (AR 实景)
+    implementation("androidx.camera:camera-core:1.3.1")
+    implementation("androidx.camera:camera-camera2:1.3.1")
+    implementation("androidx.camera:camera-lifecycle:1.3.1")
+    implementation("androidx.camera:camera-view:1.3.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
