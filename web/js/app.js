@@ -32,10 +32,13 @@
 
   /* ---------- 星座全景 ---------- */
   function enterConstellation() {
+    console.log('[App] enterConstellation', { earthReady, THREE: !!window.THREE });
     const canvas = document.getElementById('earth-canvas');
     const loading = document.getElementById('earth-loading');
+    console.log('[App] canvas and loading', { canvas: !!canvas, loading: !!loading });
     if (!earthReady) {
       setTimeout(() => {
+        console.log('[App] calling Earth.init');
         Earth.init(canvas);          // 先用内置兜底数据即时渲染
         Earth.onSelect(openDetail);
         updateCounts();
@@ -69,7 +72,10 @@
       } else {
         toast('网络不可用，使用内置演示数据');
       }
-    }).catch(() => toast('数据加载失败，使用内置演示数据'));
+    }).catch((e) => {
+      console.error('[App] loadRealData error', e);
+      toast('数据加载失败，使用内置演示数据');
+    });
   }
 
   document.querySelectorAll('#filter-chips .chip').forEach(chip => {

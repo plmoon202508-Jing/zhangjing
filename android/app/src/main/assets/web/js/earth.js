@@ -287,6 +287,13 @@
   /* ---------- 公共 API ---------- */
   const Earth = {
     init(canvas) {
+      console.log('[Earth] init starting', { canvas, THREE: !!window.THREE });
+      if (!window.THREE) {
+        console.error('[Earth] THREE not loaded!');
+        alert('3D 引擎加载失败，请检查网络连接');
+        return 0;
+      }
+      console.log('[Earth] canvas dimensions', { w: canvas.clientWidth, h: canvas.clientHeight });
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
       if ('outputEncoding' in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
@@ -305,12 +312,15 @@
       scene.add(root);
       globe = buildGlobe();
       root.add(globe);
+      console.log('[Earth] globe built', { globe: !!globe });
 
       satellites = SatData.build();
+      console.log('[Earth] satellites built', satellites.length);
       buildSatellites();
       applyFilter();
       bindInteraction(canvas);
       window.addEventListener('resize', resize);
+      console.log('[Earth] init complete', satellites.length);
       return satellites.length;
     },
     start() { if (!raf) render(); },

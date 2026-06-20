@@ -33,7 +33,15 @@ fun WebEarth(
                 settings.loadWithOverviewMode = true
                 settings.mediaPlaybackRequiresUserGesture = false
                 setBackgroundColor(android.graphics.Color.BLACK)
-                webViewClient = WebViewClient()
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
+                    setWebContentsDebuggingEnabled(true)
+                }
+                webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                        super.onPageFinished(view, url)
+                        android.util.Log.d("WebEarth", "Page finished: $url")
+                    }
+                }
                 loadUrl("file:///android_asset/web/index.html?embed=1#$hash")
             }
         }
