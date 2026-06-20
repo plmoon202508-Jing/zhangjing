@@ -57,10 +57,10 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
 
-    // 网络 (CelesTrak)
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // 网络 (CelesTrak) - 暂时禁用，使用模拟数据
+    // implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    // implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    // implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // 二维码
     implementation("com.google.zxing:core:3.5.3")
