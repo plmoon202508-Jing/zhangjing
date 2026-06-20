@@ -1,6 +1,5 @@
 package com.asiainfo.satellite.data
 
-import kotlinx.serialization.Serializable
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
@@ -12,7 +11,7 @@ import retrofit2.http.GET
 interface CelesTrakService {
     
     @GET("gp.php?GROUP=active&FORMAT=tle")
-    suspend fun getActiveTLEs(): List<TLEData>
+    suspend fun getActiveTLEs(): List<String>
     
     companion object {
         private const val BASE_URL = "https://celestrak.org/NORAD/elements/"
@@ -30,7 +29,6 @@ interface CelesTrakService {
 /**
  * TLE (Two-Line Element) 数据模型
  */
-@Serializable
 data class TLEData(
     val name: String,
     val line1: String,

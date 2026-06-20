@@ -22,8 +22,8 @@ class SatelliteRepository {
                     return@withContext Result.success(cachedSatellites!!)
                 }
                 
-                val tleData = celesTrakService.getActiveTLEs()
-                val satellites = parseSatellites(tleData)
+                val tleStrings = celesTrakService.getActiveTLEs()
+                val satellites = parseTLEStrings(tleStrings)
                 cachedSatellites = satellites
                 
                 Result.success(satellites)
@@ -34,20 +34,33 @@ class SatelliteRepository {
     }
     
     /**
-     * 解析TLE数据并过滤目标星座
+     * 解析TLE字符串并过滤目标星座
      */
-    private fun parseSatellites(tleData: List<TLEData>): List<Satellite> {
-        return tleData.mapIndexed { index, tle ->
-            val constellation = identifyConstellation(tle.name)
-            Satellite(
-                id = index,
-                name = tle.name,
-                constellation = constellation,
-                tle = tle
-            )
-        }.filter { it.constellation != SatelliteConstellation.GW || 
-                     it.name.startsWith("GUOWANG") || 
-                     it.name.startsWith("HULIANWANG") }
+    private fun parseTLEStrings(tleStrings: List<String>): List<Satellite> {
+        val satellites = mutableListOf<Satellite>()
+        var id = 0
+        
+        // TLE格式：每3行一组（名称 + line1 + line2）
+        for (i in tleStrings.indices step 3) {
+            if (i + 2 < tleStrings.size) {
+                val name = tleStrings[i].trim()
+                val line1 = tleStrings[i + 1].trim()
+                val line2 = tleStrings[i + 2].trim()
+                
+                val constellation = identifyConstellation(name)
+                val tleData = TLEData(name, line1, line2)
+                
+                // 只添加目标星座的卫星
+                if (constellation == SatelliteConstellation.GW && 
+                    (name.startsWith("GUOWANG") || name.startsWith("HULIANWANG"))) {
+                    satellites.add(Satellite(id++, name, constellation, tleData))
+                } else if (constellation != SatelliteConstellation.GW) {
+                    satellites.add(Satellite(id++, name, constellation, tleData))
+                }
+            }
+        }
+        
+        return satellites
     }
     
     /**
