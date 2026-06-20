@@ -33,11 +33,9 @@ import androidx.compose.ui.unit.sp
 import com.asiainfo.satellite.ui.components.Starfield
 import com.asiainfo.satellite.ui.theme.Bg0
 import com.asiainfo.satellite.ui.theme.Bg1
-import com.asiainfo.satellite.ui.theme.Cyan
 import com.asiainfo.satellite.ui.theme.GlassBorder
 import com.asiainfo.satellite.ui.theme.TextDim
 import com.asiainfo.satellite.ui.theme.TextMain
-import com.asiainfo.satellite.ui.theme.Violet
 
 /** 通用全息脚手架：星空背景 + 顶栏 */
 @Composable
@@ -84,22 +82,3 @@ private fun IconBtn(onClick: () -> Unit) {
         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回", tint = TextMain, modifier = Modifier.size(20.dp))
     }
 }
-
-@Composable
-private fun ComingSoon(label: String, accent: Color) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, color = accent, fontSize = 18.sp, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(10.dp))
-            Text("将在后续阶段实现", color = TextDim, fontSize = 13.sp)
-        }
-    }
-}
-
-@Composable
-fun ConstellationScreen(onBack: () -> Unit) =
-    HoloScaffold("星座全景", onBack) { ComingSoon("3D 地球 + 轨道卫星", Cyan) }
-
-@Composable
-fun ARScreen(onBack: () -> Unit) =
-    HoloScaffold("AR 卫星", onBack) { ComingSoon("相机 + 卫星方位叠加", Violet) }
