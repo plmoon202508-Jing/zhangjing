@@ -24,16 +24,6 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
       
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-      
       - name: Build Release APK
         run: |
           cd android
@@ -42,14 +32,16 @@ jobs:
           export PATH=$PWD/gradle-8.2/bin:$PATH
           gradle assembleRelease --stacktrace
       
-      - name: Check APK exists
+      - name: List build outputs
         run: |
-          ls -la android/app/build/outputs/apk/release/
+          echo "Listing build directory:"
+          find android/app/build -name "*.apk" 2>/dev/null || echo "No APK files found"
+          ls -la android/app/build/outputs/apk/release/ 2>/dev/null || echo "Release directory not found"
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: satellite-app-release
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
-        if: success()
+        if: always()
