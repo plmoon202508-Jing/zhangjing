@@ -117,8 +117,7 @@ class SatelliteRepository {
         val lines = text.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
         val out = ArrayList<TLEData>()
         var i = 0
-        while (i + 2 < lines.size + 0) {
-            if (i + 2 > lines.size - 1) break
+        while (i + 2 < lines.size) {
             val name = lines[i]
             val l1 = lines[i + 1]
             val l2 = lines[i + 2]

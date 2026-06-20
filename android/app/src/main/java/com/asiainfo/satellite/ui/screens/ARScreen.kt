@@ -6,8 +6,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,11 +33,23 @@ import com.asiainfo.satellite.location.fetchObserverLocation
 import com.asiainfo.satellite.sensor.rememberDeviceOrientation
 import com.asiainfo.satellite.ui.components.CameraPreview
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 // 相机视场角（度），用于把卫星方位投影到屏幕
 private const val H_FOV = 60.0
 private const val V_FOV = 75.0
+
+// 星座切换顺序：默认千帆在前
+private val CONSTELLATION_ORDER = listOf(
+    SatelliteConstellation.G60,
+    SatelliteConstellation.GW,
+    SatelliteConstellation.TQ
+)
+
+private fun constellationColor(c: SatelliteConstellation): Color = when (c) {
+    SatelliteConstellation.GW -> Color(0xFF2DE2FF)
+    SatelliteConstellation.G60 -> Color(0xFFFF4ECD)
+    SatelliteConstellation.TQ -> Color(0xFF4DFFB8)
+}
 
 /**
  * AR 卫星：相机实景 + 陀螺仪朝向 + GPS 定位 + SGP4 实时方位叠加
@@ -49,7 +61,6 @@ fun ARScreen(
     repository: SatelliteRepository = SatelliteRepository()
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
     var hasCamera by remember {
         mutableStateOf(
@@ -66,8 +77,9 @@ fun ARScreen(
 
     var observer by remember { mutableStateOf<ObserverLocation?>(null) }
     var looks by remember { mutableStateOf<List<SatelliteLook>>(emptyList()) }
-    var totalCount by remember { mutableStateOf(0) }
-    var status by remember { mutableStateOf("正在初始化…") }
+    var status by remember { mutableStateOf("亚信卫星时刻正在为您搜星") }
+    var selectedConstellation by remember { mutableStateOf(SatelliteConstellation.G60) }
+    var showTopList by remember { mutableStateOf(false) }
 
     val orientation by rememberDeviceOrientation()
 
@@ -78,7 +90,6 @@ fun ARScreen(
         hasLocation = result[Manifest.permission.ACCESS_FINE_LOCATION] ?: hasLocation
     }
 
-    // 首次进入请求权限
     LaunchedEffect(Unit) {
         val need = mutableListOf<String>()
         if (!hasCamera) need += Manifest.permission.CAMERA
@@ -92,9 +103,7 @@ fun ARScreen(
             status = "正在定位…"
             observer = fetchObserverLocation(context)
             if (observer == null) {
-                // 定位失败时使用默认位置（北京）
                 observer = ObserverLocation(39.9042, 116.4074, 50.0)
-                status = "定位失败，使用默认位置（北京）"
             }
         }
     }
@@ -102,23 +111,26 @@ fun ARScreen(
     // 加载 TLE 并周期性计算方位
     LaunchedEffect(observer) {
         val obs = observer ?: return@LaunchedEffect
-        status = "正在加载卫星 TLE…"
+        status = "亚信卫星时刻正在为您搜星"
         val result = repository.getAllSatellites()
         result.onSuccess { sats ->
-            totalCount = sats.size
             status = ""
             while (true) {
                 looks = repository.computeLooks(
                     sats, obs.latitude, obs.longitude, obs.altitude
-                ).sortedByDescending { it.elevationDeg }
+                )
                 delay(1000)
             }
         }.onFailure { e ->
-            status = "加载失败：${e.message}"
+            status = "搜星失败：${e.message}"
         }
     }
 
-    val visibleLooks = remember(looks) { looks.filter { it.isVisible } }
+    // 当前星座、地平线以上、按仰角排序
+    val constellationLooks = remember(looks, selectedConstellation) {
+        looks.filter { it.satellite.constellation == selectedConstellation && it.isVisible }
+            .sortedByDescending { it.elevationDeg }
+    }
 
     Scaffold(
         topBar = {
@@ -155,9 +167,9 @@ fun ARScreen(
                 }
             }
 
-            // 卫星叠加层
+            // 卫星叠加层（仅当前星座）
             SatelliteSky(
-                looks = visibleLooks,
+                looks = constellationLooks,
                 deviceAzimuth = orientation.azimuth.toDouble(),
                 devicePitch = orientation.pitch.toDouble(),
                 modifier = Modifier.fillMaxSize()
@@ -168,13 +180,20 @@ fun ARScreen(
                 Text("+", color = Color(0x88FFFFFF), fontSize = 28.sp)
             }
 
-            // 指南针
-            ARCompass(
-                azimuth = orientation.azimuth,
+            // 顶部：指南针 + 星座切换签
+            Column(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 12.dp)
-            )
+                    .padding(top = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                ARCompass(azimuth = orientation.azimuth)
+                Spacer(Modifier.height(10.dp))
+                ConstellationTabs(
+                    selected = selectedConstellation,
+                    onSelected = { selectedConstellation = it; showTopList = false }
+                )
+            }
 
             // 状态提示
             if (status.isNotEmpty()) {
@@ -201,12 +220,25 @@ fun ARScreen(
                 }
             }
 
-            // 底部信息
+            // Top10 列表浮层
+            if (showTopList) {
+                TopSatelliteList(
+                    constellation = selectedConstellation,
+                    looks = constellationLooks.take(10),
+                    onClose = { showTopList = false },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 96.dp, start = 12.dp, end = 12.dp)
+                )
+            }
+
+            // 底部信息（点击数目展开 Top10）
             ARInfo(
                 azimuth = orientation.azimuth,
                 elevation = orientation.pitch,
-                visibleCount = visibleLooks.size,
-                totalCount = totalCount,
+                constellation = selectedConstellation,
+                visibleCount = constellationLooks.size,
+                onCountClick = { showTopList = !showTopList },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(16.dp)
@@ -216,7 +248,7 @@ fun ARScreen(
 }
 
 /**
- * 把可见卫星按方位/俯仰投影到屏幕
+ * 把可见卫星按方位/俯仰投影到屏幕，并标注仰角与距离
  */
 @Composable
 private fun SatelliteSky(
@@ -225,10 +257,17 @@ private fun SatelliteSky(
     devicePitch: Double,
     modifier: Modifier = Modifier
 ) {
-    val labelPaint = remember {
+    val namePaint = remember {
         android.graphics.Paint().apply {
             color = Color(0xFFEAF6FF).toArgb()
             textSize = 30f
+            isAntiAlias = true
+        }
+    }
+    val infoPaint = remember {
+        android.graphics.Paint().apply {
+            color = Color(0xFF9FE8FF).toArgb()
+            textSize = 24f
             isAntiAlias = true
         }
     }
@@ -247,23 +286,102 @@ private fun SatelliteSky(
                 val x = cx + (dAz / (H_FOV / 2)).toFloat() * (w / 2f)
                 val y = cy - (dEl / (V_FOV / 2)).toFloat() * (h / 2f)
 
-                val color = when (look.satellite.constellation) {
-                    SatelliteConstellation.GW -> Color(0xFF2DE2FF)
-                    SatelliteConstellation.G60 -> Color(0xFFFF4ECD)
-                    SatelliteConstellation.TQ -> Color(0xFF4DFFB8)
-                }
+                val color = constellationColor(look.satellite.constellation)
 
                 drawCircle(color = color.copy(alpha = 0.25f), radius = 26f, center = Offset(x, y))
                 drawCircle(color = color, radius = 10f, center = Offset(x, y))
                 drawCircle(color = Color.White, radius = 4f, center = Offset(x, y))
 
                 drawIntoCanvas {
+                    it.nativeCanvas.drawText(look.satellite.name, x + 30f, y - 2f, namePaint)
                     it.nativeCanvas.drawText(
-                        look.satellite.name,
-                        x + 30f,
-                        y + 10f,
-                        labelPaint
+                        "仰角${look.elevationDeg.toInt()}° · ${look.rangeKm.toInt()}km",
+                        x + 30f, y + 26f, infoPaint
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConstellationTabs(
+    selected: SatelliteConstellation,
+    onSelected: (SatelliteConstellation) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        CONSTELLATION_ORDER.forEach { c ->
+            val active = c == selected
+            val color = constellationColor(c)
+            Box(
+                modifier = Modifier
+                    .background(
+                        if (active) color else Color(0xFF070A18).copy(alpha = 0.8f),
+                        RoundedCornerShape(20.dp)
+                    )
+                    .clickable { onSelected(c) }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    c.displayName,
+                    color = if (active) Color(0xFF03040A) else Color(0xFFEAF6FF),
+                    fontSize = 13.sp,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopSatelliteList(
+    constellation: SatelliteConstellation,
+    looks: List<SatelliteLook>,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF070A18).copy(alpha = 0.92f)
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${constellation.displayName} · 视野内 Top${looks.size}",
+                    color = constellationColor(constellation),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text("收起", color = Color(0xFF8AA0C0), fontSize = 12.sp,
+                    modifier = Modifier.clickable { onClose() })
+            }
+            Spacer(Modifier.height(8.dp))
+            if (looks.isEmpty()) {
+                Text("当前视野内暂无该星座卫星", color = Color(0xFF8AA0C0), fontSize = 12.sp)
+            } else {
+                looks.forEachIndexed { i, look ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "${i + 1}. ${look.satellite.name}",
+                            color = Color(0xFFEAF6FF), fontSize = 13.sp
+                        )
+                        Text(
+                            "仰${look.elevationDeg.toInt()}° 方位${look.azimuthDeg.toInt()}° ${look.rangeKm.toInt()}km",
+                            color = Color(0xFF9FE8FF), fontSize = 12.sp
+                        )
+                    }
                 }
             }
         }
@@ -295,8 +413,9 @@ private fun ARCompass(azimuth: Float, modifier: Modifier = Modifier) {
 private fun ARInfo(
     azimuth: Float,
     elevation: Float,
+    constellation: SatelliteConstellation,
     visibleCount: Int,
-    totalCount: Int,
+    onCountClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -310,12 +429,23 @@ private fun ARInfo(
             Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceAround
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             InfoCol("方位角", "${azimuth.toInt()}°", Color(0xFF2DE2FF))
             InfoCol("俯仰角", "${elevation.toInt()}°", Color(0xFF4DFFB8))
-            InfoCol("视野内", "$visibleCount", Color(0xFFFF4ECD))
-            InfoCol("地平线上", "$totalCount", Color(0xFFEAF6FF))
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { onCountClick() }
+            ) {
+                Text("${constellation.displayName}·视野内", color = Color(0xFF8AA0C0), fontSize = 12.sp)
+                Text(
+                    "$visibleCount ▸",
+                    color = constellationColor(constellation),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
