@@ -81,10 +81,10 @@
         </div>
 
         <div class="filter-chips" id="filter-chips">
-          <button class="chip is-active" data-group="all">全部</button>
-          <button class="chip" data-group="GW">星网 GW</button>
-          <button class="chip" data-group="G60">G60 千帆</button>
-          <button class="chip" data-group="TQ">天启</button>
+          <button class="chip is-active" data-group="all"><i class="chip-ico chip-ico--all">🛰</i>全部</button>
+          <button class="chip" data-group="GW"><i class="chip-ico" style="background:#2de2ff"></i>星网 GW</button>
+          <button class="chip" data-group="G60"><i class="chip-ico" style="background:#ff4ecd"></i>G60 千帆</button>
+          <button class="chip" data-group="TQ"><i class="chip-ico" style="background:#4dffb8"></i>天启</button>
         </div>
 
         <div class="loading-ring" id="earth-loading"><div></div><span>正在加载星座数据...</span></div>
@@ -217,7 +217,15 @@
   <!-- Toast 提示 -->
   <div class="toast" id="toast"></div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- 本地 three.js（离线/WebView 可用），失败回退 CDN -->
+  <script src="js/vendor/three.min.js"></script>
+  <script>if(!window.THREE){document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');}</script>
+  <script>
+    // 内嵌(WebView)模式：?embed=1 时隐藏手机外框 chrome 与重复顶栏
+    if (location.search.indexOf('embed') !== -1) {
+      document.documentElement.classList.add('embed');
+    }
+  </script>
   <script src="js/vendor/satellite.min.js"></script>
   <script src="js/data.js"></script>
   <script src="js/starfield.js"></script>

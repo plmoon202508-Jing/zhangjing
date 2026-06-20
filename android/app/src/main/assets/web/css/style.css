@@ -36,6 +36,7 @@ html, body {
   position: relative;
   width: 100%;
   max-width: 430px;
+  height: 100vh;
   height: 100dvh;
   max-height: 932px;
   margin: 0 auto;
@@ -192,6 +193,16 @@ html, body {
   backdrop-filter: blur(10px); transition: .2s;
 }
 .chip.is-active { color: #021018; background: linear-gradient(90deg, var(--cyan), var(--cyan-soft)); border-color: transparent; box-shadow: var(--glow-cyan); font-weight: 500; }
+.chip { display: inline-flex; align-items: center; gap: 7px; }
+.chip-ico { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 8px currentColor; }
+.chip-ico--all { width: auto; height: auto; border-radius: 0; box-shadow: none; font-size: 13px; line-height: 1; }
+
+/* ============ 内嵌(WebView)模式 ============ */
+.embed .device-frame { height: 100vh; height: 100dvh; max-height: none; border-radius: 0; border: none; box-shadow: none; }
+.embed .device-notch { display: none; }
+.embed .view--constellation .top-bar { display: none; }
+.embed .hud--top-left { top: 16px; }
+.embed .hud--top-right { top: 16px; }
 
 .loading-ring { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; z-index: 16; color: var(--text-dim); font-size: 13px; letter-spacing: 1px; transition: opacity .5s; }
 .loading-ring div { width: 54px; height: 54px; border-radius: 50%; border: 3px solid rgba(45,226,255,.15); border-top-color: var(--cyan); animation: spin 1s linear infinite; }

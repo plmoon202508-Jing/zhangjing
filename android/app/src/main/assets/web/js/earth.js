@@ -128,7 +128,16 @@
         map: glowTexture(color), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
       }));
       sprite.scale.set(0.1, 0.1, 0.1);
-      sprite.userData = { sat, aScene, inc: i, raan: Om, filtered: true };
+      sprite.userData = { sat, aScene, inc: i, raan: Om, filtered: true, label: null };
+
+      // 自定义命名 → 在地球上呈现该名称
+      if (sat.customName) {
+        const label = makeTextSprite(sat.customName, color);
+        label.userData.isLabel = true;
+        satGroup.add(label);
+        sprite.userData.label = label;
+      }
+
       satGroup.add(sprite);
       satMeshes.push(sprite);
     });
@@ -145,12 +154,17 @@
       const sat = m.userData.sat;
       if (sat.mode === 'sgp4' && sgp4 && sat.satrec) {
         const pv = sgp4.propagate(sat.satrec, now);
-        if (!pv || !pv.position) { m.visible = false; return; }
+        if (!pv || !pv.position) { m.visible = false; if (m.userData.label) m.userData.label.visible = false; return; }
         m.position.copy(eciToScene(pv.position));
         m.visible = m.userData.filtered;
       } else {
         const mm = (2 * Math.PI) / (sat.periodMin * 60);
         m.position.copy(orbitPoint(m.userData.aScene, m.userData.inc, m.userData.raan, sat.phase + mm * tSec));
+      }
+      // 同步名称标签位置（略微上移，避免遮挡光点）
+      if (m.userData.label) {
+        m.userData.label.position.set(m.position.x, m.position.y + 0.07, m.position.z);
+        m.userData.label.visible = m.visible;
       }
     });
   }
@@ -166,6 +180,34 @@
     g.addColorStop(0, '#ffffff'); g.addColorStop(0.25, hex); g.addColorStop(1, 'rgba(0,0,0,0)');
     x.fillStyle = g; x.fillRect(0, 0, 64, 64);
     const t = new THREE.CanvasTexture(c); texCache[color] = t; return t;
+  }
+
+  // 文本标签精灵（用于在地球上呈现卫星自定义名称）
+  function makeTextSprite(text, color) {
+    const pad = 12, fontSize = 40;
+    const measure = document.createElement('canvas').getContext('2d');
+    measure.font = `bold ${fontSize}px "Noto Sans SC", sans-serif`;
+    const w = Math.ceil(measure.measureText(text).width) + pad * 2;
+    const h = fontSize + pad * 2;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    const hex = '#' + color.toString(16).padStart(6, '0');
+    // 背景胶囊
+    x.fillStyle = 'rgba(6,12,28,0.6)';
+    if (x.roundRect) { x.beginPath(); x.roundRect(0, 0, w, h, 14); x.fill(); }
+    else x.fillRect(0, 0, w, h);
+    // 文本
+    x.font = `bold ${fontSize}px "Noto Sans SC", sans-serif`;
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.shadowColor = hex; x.shadowBlur = 12;
+    x.fillStyle = '#ffffff';
+    x.fillText(text, w / 2, h / 2);
+    const tex = new THREE.CanvasTexture(c);
+    if ('encoding' in tex) tex.encoding = THREE.sRGBEncoding;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+    const scale = 0.0016;
+    sprite.scale.set(w * scale, h * scale, 1);
+    return sprite;
   }
 
   function applyFilter() {
@@ -276,7 +318,14 @@
     setFilter(g) { filter = g; applyFilter(); },
     toggleOrbits() { showOrbits = !showOrbits; applyFilter(); return showOrbits; },
     onSelect(cb) { selectCb = cb; },
-    refreshNames() { satellites = SatData.build(); },
+    // 重命名后重建场景，使名称标签即时显示/更新
+    refreshNames() {
+      if (satGroup) { root.remove(satGroup); disposeGroup(satGroup); }
+      if (orbitGroup) { root.remove(orbitGroup); disposeGroup(orbitGroup); }
+      satellites = SatData.build();
+      buildSatellites();
+      applyFilter();
+    },
     // 数据更新后重建（切换到 CelesTrak 实时数据）
     reload() {
       if (satGroup) { root.remove(satGroup); disposeGroup(satGroup); }

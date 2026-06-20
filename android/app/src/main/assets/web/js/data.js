@@ -146,14 +146,38 @@
     };
   }
 
-  /* ---------- 自定义名称 ---------- */
+  /* ---------- 自定义名称（有效期 1 天）---------- */
+  const NAME_TTL = 24 * 3600 * 1000;   // 命名有效期 1 天
+  // 返回 { norad: name } 的纯净映射，并自动剔除过期项
   function loadCustomNames() {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch (e) { return {}; }
+    let raw;
+    try { raw = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch (e) { return {}; }
+    const now = Date.now();
+    const clean = {};
+    let changed = false;
+    Object.keys(raw).forEach((k) => {
+      const v = raw[k];
+      if (v && typeof v === 'object') {
+        if (v.name && (now - (v.ts || 0) < NAME_TTL)) clean[k] = v.name;
+        else changed = true;                 // 过期，丢弃
+      } else if (typeof v === 'string') {
+        // 兼容旧格式（无时间戳）：升级为带时间戳，立即生效
+        clean[k] = v; changed = true;
+      }
+    });
+    if (changed) {
+      const store = {};
+      Object.keys(clean).forEach((k) => { store[k] = { name: clean[k], ts: now }; });
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {}
+    }
+    return clean;
   }
   function saveCustomName(norad, name) {
-    const map = loadCustomNames();
-    if (name && name.trim()) map[norad] = name.trim(); else delete map[norad];
-    localStorage.setItem(STORE_KEY, JSON.stringify(map));
+    let store;
+    try { store = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch (e) { store = {}; }
+    if (name && name.trim()) store[norad] = { name: name.trim(), ts: Date.now() };
+    else delete store[norad];
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {}
   }
 
   /* ---------- 构建派生列表 ---------- */

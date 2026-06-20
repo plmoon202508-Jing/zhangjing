@@ -34,7 +34,7 @@ fun WebEarth(
                 settings.mediaPlaybackRequiresUserGesture = false
                 setBackgroundColor(android.graphics.Color.BLACK)
                 webViewClient = WebViewClient()
-                loadUrl("file:///android_asset/web/index.html#$hash")
+                loadUrl("file:///android_asset/web/index.html?embed=1#$hash")
             }
         }
     )
