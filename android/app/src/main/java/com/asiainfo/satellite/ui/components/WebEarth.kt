@@ -33,9 +33,6 @@ fun WebEarth(
                 settings.loadWithOverviewMode = true
                 settings.mediaPlaybackRequiresUserGesture = false
                 setBackgroundColor(android.graphics.Color.BLACK)
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.KITKAT) {
-                    setWebContentsDebuggingEnabled(true)
-                }
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
                         super.onPageFinished(view, url)
