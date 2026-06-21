@@ -46,6 +46,7 @@
           updateCounts();
           loading.classList.add('is-hidden');
           earthReady = true;
+          window.__earthOK = true;        // 标记渲染成功（调试面板据此判断是否自动弹出）
           Earth.start();
           loadRealData();                 // 异步拉取 CelesTrak 实时数据
         } catch (err) {

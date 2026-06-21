@@ -35,6 +35,8 @@
     if (level === 'error') errorCount++;
     render(entry);
     updateBadge();
+    // 出错时自动弹出面板，无需点击按钮
+    if (level === 'error' && panel) panel.style.display = 'flex';
   }
 
   function updateBadge() {
@@ -54,20 +56,31 @@
     list.scrollTop = list.scrollHeight;
   }
 
+  function togglePanel() {
+    if (!panel) return;
+    panel.style.display = (panel.style.display === 'flex') ? 'none' : 'flex';
+  }
+
+  function bindTap(el, fn) {
+    // 同时绑定 click 与 touchend，兼容部分 WebView 不触发 click 的情况
+    el.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); fn(); });
+    el.addEventListener('touchend', function (e) { e.preventDefault(); e.stopPropagation(); fn(); }, { passive: false });
+  }
+
   function buildUI() {
     badge = document.createElement('button');
     badge.id = 'dbg-badge';
-    badge.style.cssText = 'position:fixed;right:12px;bottom:14px;z-index:99999;' +
-      'border:none;border-radius:14px;padding:7px 12px;font:600 12px/1 sans-serif;' +
-      'color:#03040a;background:rgba(45,226,255,.9);box-shadow:0 4px 14px rgba(0,0,0,.4);';
+    badge.style.cssText = 'position:fixed;right:12px;top:12px;z-index:2147483647;' +
+      'border:none;border-radius:16px;padding:12px 18px;font:700 14px/1 sans-serif;' +
+      'color:#03040a;background:rgba(45,226,255,.95);box-shadow:0 4px 14px rgba(0,0,0,.5);' +
+      'touch-action:manipulation;-webkit-user-select:none;user-select:none;';
     badge.textContent = '日志';
-    badge.onclick = function () { panel.style.display = (panel.style.display === 'flex') ? 'none' : 'flex'; };
+    bindTap(badge, togglePanel);
 
     panel = document.createElement('div');
     panel.id = 'dbg-panel';
-    panel.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:46vh;z-index:99998;display:none;' +
-      'flex-direction:column;background:rgba(4,7,16,.96);border-top:1px solid rgba(45,226,255,.4);' +
-      'backdrop-filter:blur(4px);';
+    panel.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:55vh;z-index:2147483646;display:none;' +
+      'flex-direction:column;background:rgba(4,7,16,.98);border-top:2px solid rgba(45,226,255,.6);';
 
     var bar = document.createElement('div');
     bar.style.cssText = 'display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.1);';
@@ -91,14 +104,23 @@
     // 回放缓冲（UI 构建前产生的日志）
     buffer.forEach(render);
     updateBadge();
+    // 若构建前已有错误，自动弹出面板
+    if (errorCount > 0) panel.style.display = 'flex';
+    // 兜底：6 秒后若地球仍未成功渲染，自动弹出日志面板（无需点击按钮）
+    setTimeout(function () {
+      if (!global.__earthOK && panel) {
+        push('warn', '6s 内地球未渲染成功，自动展开日志以便排查');
+        panel.style.display = 'flex';
+      }
+    }, 6000);
   }
 
   function mkBtn(label, fn) {
     var b = document.createElement('button');
     b.textContent = label;
     b.style.cssText = 'border:1px solid rgba(45,226,255,.4);background:rgba(45,226,255,.12);color:#9fe6ff;' +
-      'border-radius:8px;padding:5px 10px;font:12px sans-serif;';
-    b.onclick = fn;
+      'border-radius:8px;padding:8px 14px;font:13px sans-serif;touch-action:manipulation;';
+    bindTap(b, fn);
     return b;
   }
 
