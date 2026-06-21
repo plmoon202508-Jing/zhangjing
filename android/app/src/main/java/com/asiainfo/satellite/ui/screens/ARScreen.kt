@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,8 +33,12 @@ import com.asiainfo.satellite.data.SatelliteRepository
 import com.asiainfo.satellite.location.ObserverLocation
 import com.asiainfo.satellite.location.fetchObserverLocation
 import com.asiainfo.satellite.sensor.rememberDeviceOrientation
+import com.asiainfo.satellite.share.SatelliteShare
 import com.asiainfo.satellite.ui.components.CameraPreview
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // 相机视场角（度），用于把卫星方位投影到屏幕
 private const val H_FOV = 60.0
@@ -80,6 +86,7 @@ fun ARScreen(
     var status by remember { mutableStateOf("亚信卫星时刻正在为您搜星") }
     var selectedConstellation by remember { mutableStateOf(SatelliteConstellation.G60) }
     var showTopList by remember { mutableStateOf(false) }
+    var selectedLook by remember { mutableStateOf<SatelliteLook?>(null) }
 
     val orientation by rememberDeviceOrientation()
 
@@ -167,11 +174,12 @@ fun ARScreen(
                 }
             }
 
-            // 卫星叠加层（仅当前星座）
+            // 卫星叠加层（仅当前星座），点击卫星弹出详情
             SatelliteSky(
                 looks = constellationLooks,
                 deviceAzimuth = orientation.azimuth.toDouble(),
                 devicePitch = orientation.pitch.toDouble(),
+                onSelect = { selectedLook = it },
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -245,6 +253,120 @@ fun ARScreen(
             )
         }
     }
+
+    // 点击卫星后的详情 + 分享面板
+    selectedLook?.let { look ->
+        SatelliteDetailSheet(
+            look = look,
+            observer = observer,
+            onDismiss = { selectedLook = null }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SatelliteDetailSheet(
+    look: SatelliteLook,
+    observer: ObserverLocation?,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sheetState = rememberModalBottomSheetState()
+    var sharing by remember { mutableStateOf(false) }
+    val accent = constellationColor(look.satellite.constellation)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color(0xFF070A18),
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF2DE2FF)) }
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 28.dp)
+        ) {
+            // 卫星图标 + 名称
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Canvas(Modifier.size(48.dp)) {
+                    drawSatelliteIcon(center = Offset(size.width / 2f, size.height / 2f), color = accent, scale = size.minDimension / 60f)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(look.satellite.name, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(look.satellite.constellation.displayName, color = accent, fontSize = 14.sp)
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // 信息网格
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                DetailItem("方位角", "${look.azimuthDeg.toInt()}°", Color(0xFF2DE2FF))
+                DetailItem("俯仰角", "${look.elevationDeg.toInt()}°", Color(0xFF4DFFB8))
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                DetailItem("斜距", "${look.rangeKm.toInt()} km", Color(0xFFA05BFF))
+                DetailItem("轨道高度", "${look.altitudeKm.toInt()} km", Color(0xFFFF4ECD))
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            Button(
+                onClick = {
+                    if (sharing) return@Button
+                    sharing = true
+                    scope.launch {
+                        try {
+                            val bmp = withContext(Dispatchers.Default) {
+                                SatelliteShare.buildShareBitmap(
+                                    context, look, observer?.latitude, observer?.longitude
+                                )
+                            }
+                            SatelliteShare.shareBitmap(
+                                context, bmp,
+                                "我在「亚信卫星时刻」捕捉到了 ${look.satellite.name}！"
+                            )
+                        } catch (_: Exception) {
+                        } finally {
+                            sharing = false
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2DE2FF))
+            ) {
+                if (sharing) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF03040A),
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text("正在生成分享图…", color = Color(0xFF03040A), fontWeight = FontWeight.Bold)
+                } else {
+                    Text("生成分享图并分享", color = Color(0xFF03040A), fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailItem(label: String, value: String, color: Color) {
+    Column(
+        Modifier
+            .background(Color(0x14FFFFFF), RoundedCornerShape(12.dp))
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+    ) {
+        Text(label, color = Color(0xFF8AA0C0), fontSize = 12.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(value, color = color, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+    }
 }
 
 /**
@@ -255,6 +377,7 @@ private fun SatelliteSky(
     looks: List<SatelliteLook>,
     deviceAzimuth: Double,
     devicePitch: Double,
+    onSelect: (SatelliteLook) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val namePaint = remember {
@@ -272,36 +395,134 @@ private fun SatelliteSky(
         }
     }
 
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val cx = w / 2f
-        val cy = h / 2f
+    BoxWithConstraints(modifier = modifier) {
+        val wPx = constraints.maxWidth.toFloat()
+        val hPx = constraints.maxHeight.toFloat()
 
-        looks.forEach { look ->
-            val dAz = angleDiff(look.azimuthDeg, deviceAzimuth)
-            val dEl = look.elevationDeg - devicePitch
+        // 投影：把视野内卫星映射到屏幕坐标（draw 与 命中检测共用）
+        val projected = remember(looks, deviceAzimuth, devicePitch, wPx, hPx) {
+            looks.mapNotNull { look ->
+                val dAz = angleDiff(look.azimuthDeg, deviceAzimuth)
+                val dEl = look.elevationDeg - devicePitch
+                if (kotlin.math.abs(dAz) <= H_FOV / 2 && kotlin.math.abs(dEl) <= V_FOV / 2) {
+                    val x = wPx / 2f + (dAz / (H_FOV / 2)).toFloat() * (wPx / 2f)
+                    val y = hPx / 2f - (dEl / (V_FOV / 2)).toFloat() * (hPx / 2f)
+                    Triple(look, x, y)
+                } else null
+            }
+        }
 
-            if (kotlin.math.abs(dAz) <= H_FOV / 2 && kotlin.math.abs(dEl) <= V_FOV / 2) {
-                val x = cx + (dAz / (H_FOV / 2)).toFloat() * (w / 2f)
-                val y = cy - (dEl / (V_FOV / 2)).toFloat() * (h / 2f)
+        val currentProjected by rememberUpdatedState(projected)
 
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures { tap ->
+                        val hit = currentProjected.minByOrNull { (_, x, y) ->
+                            kotlin.math.hypot((tap.x - x).toDouble(), (tap.y - y).toDouble())
+                        }
+                        if (hit != null) {
+                            val d = kotlin.math.hypot((tap.x - hit.second).toDouble(), (tap.y - hit.third).toDouble())
+                            if (d < 80.0) onSelect(hit.first)
+                        }
+                    }
+                }
+        ) {
+            projected.forEach { (look, x, y) ->
                 val color = constellationColor(look.satellite.constellation)
-
-                drawCircle(color = color.copy(alpha = 0.25f), radius = 26f, center = Offset(x, y))
-                drawCircle(color = color, radius = 10f, center = Offset(x, y))
-                drawCircle(color = Color.White, radius = 4f, center = Offset(x, y))
+                drawSatelliteIcon(center = Offset(x, y), color = color, scale = 1f)
 
                 drawIntoCanvas {
-                    it.nativeCanvas.drawText(look.satellite.name, x + 30f, y - 2f, namePaint)
+                    it.nativeCanvas.drawText(look.satellite.name, x + 36f, y - 2f, namePaint)
                     it.nativeCanvas.drawText(
                         "仰角${look.elevationDeg.toInt()}° · ${look.rangeKm.toInt()}km",
-                        x + 30f, y + 26f, infoPaint
+                        x + 36f, y + 26f, infoPaint
                     )
                 }
             }
         }
     }
+}
+
+/**
+ * 绘制带太阳能板的卫星图标：中央星体 + 两侧太阳能电池板（含栅格）+ 辉光。
+ * scale=1 时约 60px 见方。
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSatelliteIcon(
+    center: Offset,
+    color: Color,
+    scale: Float
+) {
+    val u = scale
+    // 辉光
+    drawCircle(color = color.copy(alpha = 0.22f), radius = 26f * u, center = center)
+
+    val bodyW = 14f * u
+    val bodyH = 20f * u
+    val panelW = 20f * u
+    val panelH = 13f * u
+    val gap = 4f * u
+
+    // 连接支架
+    drawLine(
+        color = color,
+        start = Offset(center.x - bodyW / 2, center.y),
+        end = Offset(center.x - bodyW / 2 - gap, center.y),
+        strokeWidth = 2.2f * u
+    )
+    drawLine(
+        color = color,
+        start = Offset(center.x + bodyW / 2, center.y),
+        end = Offset(center.x + bodyW / 2 + gap, center.y),
+        strokeWidth = 2.2f * u
+    )
+
+    // 左右太阳能板
+    val leftLeft = center.x - bodyW / 2 - gap - panelW
+    val rightLeft = center.x + bodyW / 2 + gap
+    val panelTop = center.y - panelH / 2
+    listOf(leftLeft, rightLeft).forEach { px ->
+        drawRect(
+            color = color.copy(alpha = 0.9f),
+            topLeft = Offset(px, panelTop),
+            size = androidx.compose.ui.geometry.Size(panelW, panelH)
+        )
+        // 栅格线（横竖）
+        val cols = 3
+        for (i in 1 until cols) {
+            val lx = px + panelW * i / cols
+            drawLine(
+                color = Color(0xFF03040A).copy(alpha = 0.55f),
+                start = Offset(lx, panelTop),
+                end = Offset(lx, panelTop + panelH),
+                strokeWidth = 1.2f * u
+            )
+        }
+        drawLine(
+            color = Color(0xFF03040A).copy(alpha = 0.55f),
+            start = Offset(px, center.y),
+            end = Offset(px + panelW, center.y),
+            strokeWidth = 1.2f * u
+        )
+    }
+
+    // 中央星体
+    drawRoundRect(
+        color = Color(0xFFEAF6FF),
+        topLeft = Offset(center.x - bodyW / 2, center.y - bodyH / 2),
+        size = androidx.compose.ui.geometry.Size(bodyW, bodyH),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f * u, 3f * u)
+    )
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(center.x - bodyW / 2, center.y - bodyH / 2),
+        size = androidx.compose.ui.geometry.Size(bodyW, bodyH),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f * u, 3f * u),
+        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.6f * u)
+    )
+    // 高光
+    drawCircle(color = Color.White, radius = 2.4f * u, center = center)
 }
 
 @Composable

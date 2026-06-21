@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 分享生成的图片存放于 cacheDir/shared -->
+    <cache-path name="shared" path="shared/" />
+    <external-cache-path name="ext_shared" path="shared/" />
+</paths>
