@@ -38,19 +38,39 @@
     console.log('[App] canvas and loading', { canvas: !!canvas, loading: !!loading });
     if (!earthReady) {
       setTimeout(() => {
-        console.log('[App] calling Earth.init');
-        Earth.init(canvas);          // 先用内置兜底数据即时渲染
-        Earth.onSelect(openDetail);
-        updateCounts();
-        loading.classList.add('is-hidden');
-        earthReady = true;
-        Earth.start();
-        loadRealData();              // 异步拉取 CelesTrak 实时数据
+        try {
+          console.log('[App] calling Earth.init');
+          const n = Earth.init(canvas);   // 先用内置兜底数据即时渲染
+          console.log('[App] Earth.init returned', n);
+          Earth.onSelect(openDetail);
+          updateCounts();
+          loading.classList.add('is-hidden');
+          earthReady = true;
+          Earth.start();
+          loadRealData();                 // 异步拉取 CelesTrak 实时数据
+        } catch (err) {
+          console.error('[App] Earth.init failed:', err && err.message, err && err.stack);
+          showEarthError((err && err.message) || '未知错误');
+        }
       }, 400);
     } else {
       Earth.start();
       updateCounts();
     }
+  }
+
+  // 地球初始化失败时，把错误显示在加载区（替换转圈），并弹出日志面板
+  function showEarthError(msg) {
+    const loading = document.getElementById('earth-loading');
+    if (loading) {
+      loading.classList.remove('is-hidden');
+      loading.innerHTML = '<div style="color:#ff7a7a;font-size:13px;text-align:center;padding:0 24px;line-height:1.6;">' +
+        '⚠ 3D 地球加载失败<br><span style="color:#8aa0c0;font-size:12px;">' + msg + '</span>' +
+        '<br><br><button id="earth-retry" style="border:1px solid rgba(45,226,255,.5);background:rgba(45,226,255,.12);color:#9fe6ff;border-radius:10px;padding:8px 18px;font-size:13px;">查看日志</button></div>';
+      const btn = document.getElementById('earth-retry');
+      if (btn) btn.onclick = () => { if (window.DebugLog) window.DebugLog.show(); };
+    }
+    if (window.DebugLog) window.DebugLog.show();
   }
 
   function updateCounts() {

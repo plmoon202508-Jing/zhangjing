@@ -50,17 +50,19 @@
   function buildGlobe() {
     const g = new THREE.Group();
     const loader = new THREE.TextureLoader();
+    const onErr = (which) => (e) => console.warn('[Earth] texture load failed: ' + which);
 
     // 真实地球贴图：昼面 + 夜面(城市灯光)
-    const dayMap = loader.load('textures/ssc_2k_earth_daymap.jpg');
-    const nightMap = loader.load('textures/ssc_2k_earth_nightmap.jpg');
+    const dayMap = loader.load('textures/ssc_2k_earth_daymap.jpg', undefined, undefined, onErr('day'));
+    const nightMap = loader.load('textures/ssc_2k_earth_nightmap.jpg', undefined, undefined, onErr('night'));
     if ('encoding' in dayMap) dayMap.encoding = THREE.sRGBEncoding;
     if ('encoding' in nightMap) nightMap.encoding = THREE.sRGBEncoding;
 
     // 昼夜混合着色器：白天显示昼面，夜面显示城市灯光，按太阳方向过渡
-    const earth = new THREE.Mesh(
-      new THREE.SphereGeometry(R_EARTH, 64, 48),
-      new THREE.ShaderMaterial({
+    // 部分 Android WebView GPU 对自定义 GLSL 较严格，编译失败时回退到标准 Phong 贴图，保证地球可见。
+    let earthMat;
+    try {
+      earthMat = new THREE.ShaderMaterial({
         uniforms: {
           dayTex: { value: dayMap },
           nightTex: { value: nightMap },
@@ -69,19 +71,24 @@
         vertexShader: `varying vec2 vUv; varying vec3 vNW;
           void main(){ vUv = uv; vNW = normalize(mat3(modelMatrix) * normal);
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-        fragmentShader: `uniform sampler2D dayTex, nightTex; uniform vec3 sunDir;
+        fragmentShader: `precision mediump float;
+          uniform sampler2D dayTex, nightTex; uniform vec3 sunDir;
           varying vec2 vUv; varying vec3 vNW;
           void main(){ float l = dot(normalize(vNW), sunDir);
             float m = smoothstep(-0.12, 0.28, l);
             vec3 day = texture2D(dayTex, vUv).rgb;
             vec3 night = texture2D(nightTex, vUv).rgb * 1.6;
             gl_FragColor = vec4(mix(night, day, m), 1.0); }`
-      })
-    );
+      });
+    } catch (e) {
+      console.warn('[Earth] shader material failed, fallback to Phong:', e.message);
+      earthMat = new THREE.MeshPhongMaterial({ map: dayMap, emissiveMap: nightMap, emissive: 0xffffff, emissiveIntensity: 0.35 });
+    }
+    const earth = new THREE.Mesh(new THREE.SphereGeometry(R_EARTH, 64, 48), earthMat);
     g.add(earth);
 
     // 云层
-    const cloudMap = loader.load('textures/ssc_2k_earth_clouds.jpg');
+    const cloudMap = loader.load('textures/ssc_2k_earth_clouds.jpg', undefined, undefined, onErr('clouds'));
     clouds = new THREE.Mesh(
       new THREE.SphereGeometry(R_EARTH * 1.012, 64, 48),
       new THREE.MeshPhongMaterial({ map: cloudMap, transparent: true, opacity: 0.38, depthWrite: false })
@@ -294,7 +301,16 @@
         return 0;
       }
       console.log('[Earth] canvas dimensions', { w: canvas.clientWidth, h: canvas.clientHeight });
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      // WebGL 支持检测：失败直接抛出明确错误（由 app.js 捕获并显示）
+      try {
+        const test = document.createElement('canvas');
+        const gl = test.getContext('webgl') || test.getContext('experimental-webgl');
+        if (!gl) throw new Error('当前 WebView 不支持 WebGL（请确认已开启硬件加速）');
+        console.log('[Earth] WebGL OK', gl.getParameter(gl.VERSION));
+      } catch (e) {
+        throw new Error('WebGL 不可用: ' + (e.message || e));
+      }
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, failIfMajorPerformanceCaveat: false });
       renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
       if ('outputEncoding' in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
       resize();

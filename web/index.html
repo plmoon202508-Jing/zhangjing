@@ -217,8 +217,12 @@
   <!-- Toast 提示 -->
   <div class="toast" id="toast"></div>
 
+  <!-- 调试日志面板：最先加载以捕获所有后续错误与 console 输出 -->
+  <script src="js/debug.js"></script>
+
   <!-- 本地 three.js（离线/WebView 可用），失败回退 CDN -->
   <script src="js/vendor/three.min.js"></script>
+  <script>console.log('[boot] three.js loaded?', !!window.THREE, 'version', window.THREE && window.THREE.REVISION);</script>
   <script>if(!window.THREE){document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');}</script>
   <script>
     // 内嵌(WebView)模式：?embed=1 时隐藏手机外框 chrome 与重复顶栏

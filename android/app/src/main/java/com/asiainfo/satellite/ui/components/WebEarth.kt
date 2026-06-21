@@ -2,6 +2,7 @@ package com.asiainfo.satellite.ui.components
 
 import android.annotation.SuppressLint
 import android.util.Log
+import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -27,6 +28,8 @@ fun WebEarth(
         factory = { ctx ->
             Log.d("WebEarth", "Creating WebView with hash: $hash")
             WebView(ctx).apply {
+                // 强制硬件层，确保 WebGL 可获得 GPU 上下文（部分设备 Compose 内嵌 WebView 会落到软件层导致 WebGL 不可用）
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowFileAccess = true

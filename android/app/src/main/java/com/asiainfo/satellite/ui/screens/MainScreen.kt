@@ -1,10 +1,6 @@
 package com.asiainfo.satellite.ui.screens
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,17 +23,17 @@ import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.asiainfo.satellite.R
 import com.asiainfo.satellite.ui.components.Starfield
 import com.asiainfo.satellite.ui.theme.Bg0
 import com.asiainfo.satellite.ui.theme.Bg1
@@ -125,30 +121,27 @@ fun MainScreen(
 
 @Composable
 private fun BrandLogo() {
-    val transition = rememberInfiniteTransition(label = "logo")
-    val angle by transition.animateFloat(
-        0f, 360f, infiniteRepeatable(tween(6000, easing = LinearEasing)), label = "a"
-    )
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(120.dp)) {
-        // 辉光核心
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(width = 200.dp, height = 96.dp)
+    ) {
+        // 背景辉光
         Box(
             Modifier
-                .size(24.dp)
-                .background(Cyan, CircleShape)
+                .size(160.dp)
+                .background(
+                    Brush.radialGradient(
+                        listOf(Cyan.copy(alpha = 0.22f), Color.Transparent)
+                    ),
+                    CircleShape
+                )
         )
-        // 旋转卫星
-        Box(
-            Modifier
-                .size(110.dp)
-                .rotate(angle),
-            contentAlignment = Alignment.CenterEnd
-        ) {
-            Box(
-                Modifier
-                    .size(10.dp)
-                    .background(Color(0xFFFF4ECD), CircleShape)
-            )
-        }
+        Image(
+            painter = painterResource(id = R.drawable.asiainfo_logo),
+            contentDescription = "亚信 logo",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
