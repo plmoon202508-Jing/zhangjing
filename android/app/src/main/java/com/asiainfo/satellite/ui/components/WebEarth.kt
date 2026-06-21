@@ -1,6 +1,9 @@
 package com.asiainfo.satellite.ui.components
 
 import android.annotation.SuppressLint
+import android.util.Log
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.runtime.Composable
@@ -22,6 +25,7 @@ fun WebEarth(
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
+            Log.d("WebEarth", "Creating WebView with hash: $hash")
             WebView(ctx).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
@@ -33,13 +37,26 @@ fun WebEarth(
                 settings.loadWithOverviewMode = true
                 settings.mediaPlaybackRequiresUserGesture = false
                 setBackgroundColor(android.graphics.Color.BLACK)
+
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
                         super.onPageFinished(view, url)
-                        android.util.Log.d("WebEarth", "Page finished: $url")
+                        Log.d("WebEarth", "Page finished: $url")
                     }
                 }
-                loadUrl("file:///android_asset/web/index.html?embed=1#$hash")
+
+                webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                        consoleMessage?.let {
+                            Log.d("WebEarth-Console", "[${it.sourceId()}:${it.lineNumber()}] ${it.message()}")
+                        }
+                        return true
+                    }
+                }
+
+                val url = "file:///android_asset/web/index.html?embed=1#$hash"
+                Log.d("WebEarth", "Loading URL: $url")
+                loadUrl(url)
             }
         }
     )
