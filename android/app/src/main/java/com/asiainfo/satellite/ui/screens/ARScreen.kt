@@ -33,6 +33,7 @@ import com.asiainfo.satellite.data.SatelliteRepository
 import com.asiainfo.satellite.location.ObserverLocation
 import com.asiainfo.satellite.location.fetchObserverLocation
 import com.asiainfo.satellite.sensor.rememberDeviceOrientation
+import com.asiainfo.satellite.share.CloudUploader
 import com.asiainfo.satellite.share.SatelliteShare
 import com.asiainfo.satellite.ui.components.CameraPreview
 import kotlinx.coroutines.Dispatchers
@@ -275,6 +276,7 @@ private fun SatelliteDetailSheet(
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState()
     var sharing by remember { mutableStateOf(false) }
+    var shareMsg by remember { mutableStateOf("") }
     val accent = constellationColor(look.satellite.constellation)
 
     ModalBottomSheet(
@@ -320,21 +322,38 @@ private fun SatelliteDetailSheet(
                 onClick = {
                     if (sharing) return@Button
                     sharing = true
+                    shareMsg = ""
                     scope.launch {
-                        try {
-                            val bmp = withContext(Dispatchers.Default) {
-                                SatelliteShare.buildShareBitmap(
-                                    context, look, observer?.latitude, observer?.longitude
-                                )
-                            }
-                            SatelliteShare.shareBitmap(
-                                context, bmp,
-                                "我在「亚信卫星时刻」捕捉到了 ${look.satellite.name}！"
+                        val bmp = withContext(Dispatchers.Default) {
+                            // 1) 生成邮票分享图（二维码位预留）
+                            val base = SatelliteShare.buildShareBitmap(
+                                context, look, observer?.latitude, observer?.longitude
                             )
-                        } catch (_: Exception) {
-                        } finally {
-                            sharing = false
+                            // 2) 上传云主机拿到 H5 查看/下载页地址；二维码即编码该页
+                            var pageUrl = SatelliteShare.QR_URL
+                            try {
+                                val pngNoQr = SatelliteShare.bitmapToPng(base)
+                                val up = CloudUploader.upload(pngNoQr)
+                                pageUrl = up.page
+                                // 3) 回填二维码 → 最终图，并覆盖上传，使扫码页展示带码成图
+                                val qr = SatelliteShare.qrBitmap(pageUrl, 480)
+                                SatelliteShare.drawQrOnto(base, qr)
+                                qr.recycle()
+                                runCatching { CloudUploader.upload(SatelliteShare.bitmapToPng(base), up.id) }
+                            } catch (e: Exception) {
+                                // 上传失败：仍生成本地分享图（二维码指向默认地址）
+                                val qr = SatelliteShare.qrBitmap(pageUrl, 480)
+                                SatelliteShare.drawQrOnto(base, qr)
+                                qr.recycle()
+                                shareMsg = "云端上传失败，已生成本地分享图"
+                            }
+                            base
                         }
+                        SatelliteShare.shareBitmap(
+                            context, bmp,
+                            "我在「亚信卫星时刻」捕捉到了 ${look.satellite.name}！"
+                        )
+                        sharing = false
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -347,10 +366,14 @@ private fun SatelliteDetailSheet(
                         strokeWidth = 2.dp
                     )
                     Spacer(Modifier.width(10.dp))
-                    Text("正在生成分享图…", color = Color(0xFF03040A), fontWeight = FontWeight.Bold)
+                    Text("正在上传并生成分享图…", color = Color(0xFF03040A), fontWeight = FontWeight.Bold)
                 } else {
-                    Text("生成分享图并分享", color = Color(0xFF03040A), fontWeight = FontWeight.Bold)
+                    Text("上传云端并分享", color = Color(0xFF03040A), fontWeight = FontWeight.Bold)
                 }
+            }
+            if (shareMsg.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text(shareMsg, color = Color(0xFFFFB86B), fontSize = 12.sp)
             }
         }
     }

@@ -60,104 +60,154 @@ object SatelliteShare {
         return bmp
     }
 
+    // 邮票区高度 = 底图宽度 * 该比例（保证不同尺寸底图比例一致）
+    private const val STAMP_RATIO = 0.62f
+
+    /** 邮票区在最终图中的顶边 y（底图正下方） */
+    private fun stampTop(w: Int, h: Int): Float = (h - w * STAMP_RATIO)
+
     /**
-     * 合成分享图：底图 + 底部信息面板（卫星信息）+ 二维码。
-     * 信息以相对比例排版，适配任意尺寸底图。
+     * 合成分享图：底图原样在上，下方扩展出一块「邮票样式」白色区域，
+     * 卫星信息排在邮票区内（不遮挡底图）。二维码区域预留，调用 [drawQrOnto] 填充。
      */
     fun buildShareBitmap(
         context: Context,
         look: SatelliteLook,
         observerLat: Double?,
         observerLon: Double?,
-        qrText: String = QR_URL
+        qr: Bitmap? = null
     ): Bitmap {
-        val base = loadTemplate(context)
-        val bmp = base.copy(Bitmap.Config.ARGB_8888, true)
-        base.recycle()
+        val template = loadTemplate(context)
+        val w = template.width
+        val stampH = (w * STAMP_RATIO).toInt()
+        val h = template.height + stampH
+
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
-        val w = bmp.width.toFloat()
-        val h = bmp.height.toFloat()
-        val unit = w / 1080f   // 以 1080 宽为基准缩放
+        val unit = w / 1080f
 
-        // 底部半透明信息面板
-        val panelLeft = 60f * unit
-        val panelRight = w - 60f * unit
-        val panelBottom = h - 60f * unit
-        val panelTop = h - 620f * unit
-        val panelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#CC060C1C")
+        // 1) 顶部背景（邮票区外的底色）+ 底图
+        c.drawColor(Color.parseColor("#03040A"))
+        c.drawBitmap(template, 0f, 0f, null)
+        template.recycle()
+
+        // 2) 邮票区
+        val top = stampTop(w, h)
+        drawStamp(c, look, observerLat, observerLon, w.toFloat(), top, h.toFloat(), unit)
+
+        // 3) 二维码（如已生成）
+        if (qr != null) drawQrOnto(bmp, qr)
+
+        return bmp
+    }
+
+    /** 绘制邮票样式白色区域 + 卫星信息 + 预留二维码位 */
+    private fun drawStamp(
+        c: Canvas,
+        look: SatelliteLook,
+        observerLat: Double?,
+        observerLon: Double?,
+        w: Float, stampTop: Float, h: Float,
+        unit: Float
+    ) {
+        val margin = 56f * unit
+        val left = margin
+        val right = w - margin
+        val top = stampTop + margin
+        val bottom = h - margin
+
+        // 白色邮票底
+        val white = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        val rect = RectF(left, top, right, bottom)
+        c.drawRect(rect, white)
+
+        // 邮票锯齿（沿四边画底色小半圆，形成打孔效果）
+        val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#03040A") }
+        val tooth = 18f * unit
+        var x = left
+        while (x <= right) {
+            c.drawCircle(x, top, tooth, bg)
+            c.drawCircle(x, bottom, tooth, bg)
+            x += tooth * 2
         }
-        val radius = 36f * unit
-        c.drawRoundRect(RectF(panelLeft, panelTop, panelRight, panelBottom), radius, radius, panelPaint)
-        // 面板描边
-        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        var yy = top
+        while (yy <= bottom) {
+            c.drawCircle(left, yy, tooth, bg)
+            c.drawCircle(right, yy, tooth, bg)
+            yy += tooth * 2
+        }
+
+        // 内描边（虚线感）
+        val inset = 22f * unit
+        val innerBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = 2f * unit
-            color = Color.parseColor("#552DE2FF")
+            strokeWidth = 2.5f * unit
+            color = Color.parseColor("#1F3B5B")
         }
-        c.drawRoundRect(RectF(panelLeft, panelTop, panelRight, panelBottom), radius, radius, borderPaint)
+        c.drawRect(RectF(left + inset, top + inset, right - inset, bottom - inset), innerBorder)
 
-        val padL = panelLeft + 48f * unit
-        var y = panelTop + 92f * unit
+        val accent = constellationColor(look)
+        val padL = left + inset + 36f * unit
+        var y = top + inset + 70f * unit
 
         // 顶部标识
-        val tagPaint = textPaint(Color.parseColor("#2DE2FF"), 30f * unit, true)
-        c.drawText("亚信卫星时刻 · ASIAINFO SATELLITE MOMENT", padL, y, tagPaint)
-        y += 76f * unit
+        c.drawText("亚信卫星时刻 · ASIAINFO SATELLITE MOMENT",
+            padL, y, textPaint(accent, 28f * unit, true))
+        y += 86f * unit
 
-        // 卫星名称
-        val namePaint = textPaint(Color.WHITE, 64f * unit, true)
-        c.drawText(look.satellite.name, padL, y, namePaint)
-        y += 50f * unit
-
-        // 星座
-        val accent = constellationColor(look)
-        val subPaint = textPaint(accent, 34f * unit, false)
-        c.drawText(look.satellite.constellation.displayName, padL, y, subPaint)
-        y += 64f * unit
+        // 卫星名称 + 星座
+        c.drawText(look.satellite.name, padL, y, textPaint(Color.parseColor("#0B1A33"), 70f * unit, true))
+        y += 56f * unit
+        c.drawText(look.satellite.constellation.displayName, padL, y, textPaint(accent, 34f * unit, true))
+        y += 78f * unit
 
         // 信息行
-        val labelPaint = textPaint(Color.parseColor("#8AA0C0"), 30f * unit, false)
-        val valuePaint = textPaint(Color.parseColor("#EAF6FF"), 38f * unit, true)
-        val lineGap = 78f * unit
-        val infoX2 = padL + 360f * unit
-        drawKV(c, "方位角", "${look.azimuthDeg.toInt()}°", padL, infoX2, y, labelPaint, valuePaint)
-        y += lineGap
-        drawKV(c, "俯仰角", "${look.elevationDeg.toInt()}°", padL, infoX2, y, labelPaint, valuePaint)
-        y += lineGap
-        drawKV(c, "距离", "${look.rangeKm.toInt()} km", padL, infoX2, y, labelPaint, valuePaint)
-        y += lineGap
-        drawKV(c, "轨道高度", "${look.altitudeKm.toInt()} km", padL, infoX2, y, labelPaint, valuePaint)
-        y += lineGap
+        val labelPaint = textPaint(Color.parseColor("#6B7C99"), 30f * unit, false)
+        val valuePaint = textPaint(Color.parseColor("#0B1A33"), 40f * unit, true)
+        val lineGap = 84f * unit
+        val infoX2 = padL + 340f * unit
+        drawKV(c, "方位角", "${look.azimuthDeg.toInt()}°", padL, infoX2, y, labelPaint, valuePaint); y += lineGap
+        drawKV(c, "俯仰角", "${look.elevationDeg.toInt()}°", padL, infoX2, y, labelPaint, valuePaint); y += lineGap
+        drawKV(c, "斜距", "${look.rangeKm.toInt()} km", padL, infoX2, y, labelPaint, valuePaint); y += lineGap
+        drawKV(c, "轨道高度", "${look.altitudeKm.toInt()} km", padL, infoX2, y, labelPaint, valuePaint); y += lineGap + 8f * unit
 
         // 观测信息
         val time = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA).format(Date())
         val locStr = if (observerLat != null && observerLon != null)
             String.format(Locale.CHINA, "%.2f°, %.2f°", observerLat, observerLon) else "未知"
-        c.drawText("观测时间  $time", padL, y, labelPaint)
-        y += 50f * unit
+        c.drawText("观测时间  $time", padL, y, labelPaint); y += 52f * unit
         c.drawText("观测位置  $locStr", padL, y, labelPaint)
 
-        // 二维码（右下角）
-        val qrSize = (260f * unit).toInt()
-        val qr = qrBitmap(qrText, qrSize)
-        val qrX = panelRight - qrSize - 48f * unit
-        val qrY = panelBottom - qrSize - 48f * unit
-        // 二维码白底卡片
-        val cardPad = 14f * unit
-        val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        c.drawRoundRect(
-            RectF(qrX - cardPad, qrY - cardPad, qrX + qrSize + cardPad, qrY + qrSize + cardPad),
-            12f * unit, 12f * unit, cardPaint
-        )
-        c.drawBitmap(qr, qrX, qrY, null)
-        qr.recycle()
-        val scanPaint = textPaint(Color.parseColor("#8AA0C0"), 24f * unit, false).apply {
-            textAlign = Paint.Align.CENTER
+        // 二维码占位框 + 文案（右下角）
+        val qrRect = qrRectFor(w.toInt(), h.toInt())
+        val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE; strokeWidth = 2f * unit; color = Color.parseColor("#C4D2E6")
         }
-        c.drawText("扫码体验/下载", qrX + qrSize / 2f, qrY + qrSize + 38f * unit, scanPaint)
+        c.drawRect(qrRect, frame)
+        c.drawText("扫码查看/下载",
+            qrRect.centerX(), qrRect.bottom + 42f * unit,
+            textPaint(Color.parseColor("#6B7C99"), 26f * unit, false).apply { textAlign = Paint.Align.CENTER })
+    }
 
-        return bmp
+    /** 二维码在最终图中的矩形（邮票区右下角，build 与填充共用，保证一致） */
+    private fun qrRectFor(w: Int, h: Int): RectF {
+        val unit = w / 1080f
+        val margin = 56f * unit
+        val inset = 22f * unit
+        val bottom = h - margin - inset - 60f * unit
+        val right = w - margin - inset - 36f * unit
+        val size = 300f * unit
+        return RectF(right - size, bottom - size, right, bottom)
+    }
+
+    /** 将二维码绘制进预留位置（上传拿到 URL 后调用） */
+    fun drawQrOnto(bmp: Bitmap, qr: Bitmap) {
+        val c = Canvas(bmp)
+        val rect = qrRectFor(bmp.width, bmp.height)
+        val white = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        c.drawRect(rect, white)
+        val dst = RectF(rect.left + 6f, rect.top + 6f, rect.right - 6f, rect.bottom - 6f)
+        c.drawBitmap(qr, null, dst, Paint(Paint.FILTER_BITMAP_FLAG))
     }
 
     private fun drawKV(
@@ -198,6 +248,13 @@ object SatelliteShare {
             }
         }
         return bmp
+    }
+
+    /** Bitmap → PNG 字节 */
+    fun bitmapToPng(bmp: Bitmap): ByteArray {
+        val bos = java.io.ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.PNG, 100, bos)
+        return bos.toByteArray()
     }
 
     /** 保存到 cacheDir/shared 并通过系统分享面板分享（用户可选微信→朋友圈） */
