@@ -6,9 +6,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,6 +33,7 @@ import androidx.core.content.ContextCompat
 import com.asiainfo.satellite.data.SatelliteConstellation
 import com.asiainfo.satellite.data.SatelliteLook
 import com.asiainfo.satellite.data.SatelliteRepository
+import com.asiainfo.satellite.data.UserNameStore
 import com.asiainfo.satellite.location.ObserverLocation
 import com.asiainfo.satellite.location.fetchObserverLocation
 import com.asiainfo.satellite.sensor.rememberDeviceOrientation
@@ -88,6 +92,8 @@ fun ARScreen(
     var selectedConstellation by remember { mutableStateOf(SatelliteConstellation.G60) }
     var showTopList by remember { mutableStateOf(false) }
     var selectedLook by remember { mutableStateOf<SatelliteLook?>(null) }
+    var showNameDialog by remember { mutableStateOf(false) }
+    var pendingLook by remember { mutableStateOf<SatelliteLook?>(null) }
 
     val orientation by rememberDeviceOrientation()
 
@@ -180,7 +186,15 @@ fun ARScreen(
                 looks = constellationLooks,
                 deviceAzimuth = orientation.azimuth.toDouble(),
                 devicePitch = orientation.pitch.toDouble(),
-                onSelect = { selectedLook = it },
+                onSelect = { 
+                    // 检查是否需要输入姓名
+                    if (!UserNameStore.hasUserName()) {
+                        pendingLook = it
+                        showNameDialog = true
+                    } else {
+                        selectedLook = it
+                    }
+                },
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -260,7 +274,24 @@ fun ARScreen(
         SatelliteDetailSheet(
             look = look,
             observer = observer,
+            userName = UserNameStore.getUserName(),
             onDismiss = { selectedLook = null }
+        )
+    }
+
+    // 体验人姓名输入对话框
+    if (showNameDialog) {
+        UserNameInputDialog(
+            onDismiss = { 
+                showNameDialog = false
+                pendingLook = null
+            },
+            onConfirm = { name ->
+                UserNameStore.setUserName(name)
+                showNameDialog = false
+                pendingLook?.let { selectedLook = it }
+                pendingLook = null
+            }
         )
     }
 }
@@ -270,6 +301,7 @@ fun ARScreen(
 private fun SatelliteDetailSheet(
     look: SatelliteLook,
     observer: ObserverLocation?,
+    userName: String?,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -303,6 +335,15 @@ private fun SatelliteDetailSheet(
                 }
             }
 
+            // 体验人姓名
+            userName?.let { name ->
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("体验人：", color = Color(0xFF8AA0C0), fontSize = 13.sp)
+                    Text(name, color = Color(0xFF2DE2FF), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
             Spacer(Modifier.height(20.dp))
 
             // 信息网格
@@ -327,7 +368,7 @@ private fun SatelliteDetailSheet(
                         val bmp = withContext(Dispatchers.Default) {
                             // 1) 生成邮票分享图（二维码位预留）
                             val base = SatelliteShare.buildShareBitmap(
-                                context, look, observer?.latitude, observer?.longitude
+                                context, look, observer?.latitude, observer?.longitude, userName
                             )
                             // 2) 上传云主机拿到 H5 查看/下载页地址；二维码即编码该页
                             var pageUrl = SatelliteShare.QR_URL
@@ -714,4 +755,54 @@ private fun azimuthToDirection(az: Float): String {
     val dirs = arrayOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")
     val idx = (((az + 22.5f) % 360f) / 45f).toInt()
     return dirs[idx.coerceIn(0, 7)]
+}
+
+@Composable
+private fun UserNameInputDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("请输入您的姓名或昵称") },
+        text = {
+            Column {
+                Text("为了更好的体验，请告诉我们您的称呼", color = Color(0xFF8AA0C0), fontSize = 13.sp)
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(Color(0x14FFFFFF), RoundedCornerShape(8.dp))
+                        .border(1.dp, Color(0xFF2DE2FF).copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 12.dp)
+                ) {
+                    BasicTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        singleLine = true,
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 16.sp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (text.isEmpty()) {
+                        Text("请输入姓名或昵称", color = Color(0xFF54657F), fontSize = 16.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { if (text.isNotBlank()) onConfirm(text.trim()) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2DE2FF))
+            ) {
+                Text("确定", color = Color(0xFF03040A))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = Color(0xFF8AA0C0))
+            }
+        }
+    )
 }

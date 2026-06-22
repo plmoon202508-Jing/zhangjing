@@ -37,6 +37,7 @@ import com.asiainfo.satellite.data.SatSubPoint
 import com.asiainfo.satellite.data.Satellite
 import com.asiainfo.satellite.data.SatelliteConstellation
 import com.asiainfo.satellite.data.SatelliteRepository
+import com.asiainfo.satellite.data.ContourData
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -59,6 +60,13 @@ private fun constColor(c: SatelliteConstellation?): Color = when (c) {
 }
 
 private const val RE_KM = 6371.0
+
+/** 地球渲染模式 */
+enum class GlobeRenderMode {
+    GRID,       // 网格模式（当前默认）
+    DOT_MATRIX, // 大陆点阵模式
+    REALISTIC   // 真实地球模式
+}
 
 /** 正交投影后的屏幕坐标与深度（depth>=0 表示朝向观察者的前半球） */
 private class Proj(val x: Float, val y: Float, val depth: Float, val unitDepth: Float)
@@ -101,6 +109,7 @@ fun ConstellationScreen(
     var status by remember { mutableStateOf("正在加载星座数据…") }
     var filter by remember { mutableStateOf<SatelliteConstellation?>(null) }
     var selected by remember { mutableStateOf<SatSubPoint?>(null) }
+    var renderMode by remember { mutableStateOf(GlobeRenderMode.GRID) }
 
     var spin by remember { mutableStateOf(0f) }
     var tilt by remember { mutableStateOf(-20f) }
@@ -193,7 +202,7 @@ fun ConstellationScreen(
                         .then(dragMod)
                         .then(tapMod)
                 ) {
-                    drawGlobe(cx, cy, radius, spin, tilt)
+                    drawGlobe(cx, cy, radius, spin, tilt, renderMode)
                     val selNorad = selected?.satellite?.tle?.noradId
                     shown.forEach { sp ->
                         val r = 1.0 + sp.altKm / RE_KM
@@ -201,6 +210,12 @@ fun ConstellationScreen(
                         if (!isVisible(p)) return@forEach
                         val color = constColor(sp.satellite.constellation)
                         val isSel = sp.satellite.tle.noradId == selNorad
+                        
+                        // 绘制卫星轨道线（仅选中卫星）
+                        if (isSel) {
+                            drawOrbit(sp, spin, tilt, cx, cy, radius, color)
+                        }
+                        
                         drawSatDot(Offset(p.x, p.y), color, isSel)
                         val custom = nameStore.get(sp.satellite.tle.noradId)
                         if (isSel || custom != null) {
@@ -230,6 +245,30 @@ fun ConstellationScreen(
                         onClick = { filter = c; selected = null }
                     )
                 }
+            }
+
+            // 地球渲染模式切换
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 8.dp, end = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                GlobeModeChip(
+                    label = "网格",
+                    active = renderMode == GlobeRenderMode.GRID,
+                    onClick = { renderMode = GlobeRenderMode.GRID }
+                )
+                GlobeModeChip(
+                    label = "点阵",
+                    active = renderMode == GlobeRenderMode.DOT_MATRIX,
+                    onClick = { renderMode = GlobeRenderMode.DOT_MATRIX }
+                )
+                GlobeModeChip(
+                    label = "真实",
+                    active = renderMode == GlobeRenderMode.REALISTIC,
+                    onClick = { renderMode = GlobeRenderMode.REALISTIC }
+                )
             }
 
             // 在轨数量
@@ -298,8 +337,8 @@ private fun isVisible(p: Proj): Boolean {
     return p.unitDepth >= 0f
 }
 
-private fun DrawScope.drawGlobe(cx: Float, cy: Float, radius: Float, spin: Float, tilt: Float) {
-    // 大气辉光
+private fun DrawScope.drawGlobe(cx: Float, cy: Float, radius: Float, spin: Float, tilt: Float, mode: GlobeRenderMode) {
+    // 大气辉光（所有模式通用）
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(Color(0x332DE2FF), Color(0x00000000)),
@@ -307,48 +346,109 @@ private fun DrawScope.drawGlobe(cx: Float, cy: Float, radius: Float, spin: Float
         ),
         radius = radius * 1.35f, center = Offset(cx, cy)
     )
-    // 球体（带光照感的径向渐变）
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(Color(0xFF1B3C68), Color(0xFF0A1B33), Color(0xFF050D1C)),
-            center = Offset(cx - radius * 0.3f, cy - radius * 0.3f),
-            radius = radius * 1.4f
-        ),
-        radius = radius, center = Offset(cx, cy)
-    )
-    // 经纬网格
-    val grat = Color(0xFF2DE2FF).copy(alpha = 0.20f)
-    // 纬线
-    var latLine = -60
-    while (latLine <= 60) {
-        var prev: Proj? = null
-        var lon = 0
-        while (lon <= 360) {
-            val p = project(latLine.toDouble(), lon.toDouble(), 1.0, spin, tilt, cx, cy, radius)
-            if (prev != null && prev.unitDepth >= 0f && p.unitDepth >= 0f) {
-                drawLine(grat, Offset(prev.x, prev.y), Offset(p.x, p.y), strokeWidth = 1.4f)
+
+    when (mode) {
+        GlobeRenderMode.GRID -> {
+            // 球体（带光照感的径向渐变）
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFF1B3C68), Color(0xFF0A1B33), Color(0xFF050D1C)),
+                    center = Offset(cx - radius * 0.3f, cy - radius * 0.3f),
+                    radius = radius * 1.4f
+                ),
+                radius = radius, center = Offset(cx, cy)
+            )
+            // 经纬网格
+            val grat = Color(0xFF2DE2FF).copy(alpha = 0.20f)
+            // 纬线
+            var latLine = -60
+            while (latLine <= 60) {
+                var prev: Proj? = null
+                var lon = 0
+                while (lon <= 360) {
+                    val p = project(latLine.toDouble(), lon.toDouble(), 1.0, spin, tilt, cx, cy, radius)
+                    if (prev != null && prev.unitDepth >= 0f && p.unitDepth >= 0f) {
+                        drawLine(grat, Offset(prev.x, prev.y), Offset(p.x, p.y), strokeWidth = 1.4f)
+                    }
+                    prev = p
+                    lon += 6
+                }
+                latLine += 30
             }
-            prev = p
-            lon += 6
-        }
-        latLine += 30
-    }
-    // 经线
-    var lonLine = 0
-    while (lonLine < 360) {
-        var prev: Proj? = null
-        var lat = -90
-        while (lat <= 90) {
-            val p = project(lat.toDouble(), lonLine.toDouble(), 1.0, spin, tilt, cx, cy, radius)
-            if (prev != null && prev.unitDepth >= 0f && p.unitDepth >= 0f) {
-                drawLine(grat, Offset(prev.x, prev.y), Offset(p.x, p.y), strokeWidth = 1.4f)
+            // 经线
+            var lonLine = 0
+            while (lonLine < 360) {
+                var prev: Proj? = null
+                var lat = -90
+                while (lat <= 90) {
+                    val p = project(lat.toDouble(), lonLine.toDouble(), 1.0, spin, tilt, cx, cy, radius)
+                    if (prev != null && prev.unitDepth >= 0f && p.unitDepth >= 0f) {
+                        drawLine(grat, Offset(prev.x, prev.y), Offset(p.x, p.y), strokeWidth = 1.4f)
+                    }
+                    prev = p
+                    lat += 6
+                }
+                lonLine += 30
             }
-            prev = p
-            lat += 6
         }
-        lonLine += 30
+        GlobeRenderMode.DOT_MATRIX -> {
+            // 深色球体背景
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFF0A1B33), Color(0xFF050D1C)),
+                    center = Offset(cx - radius * 0.3f, cy - radius * 0.3f),
+                    radius = radius * 1.4f
+                ),
+                radius = radius, center = Offset(cx, cy)
+            )
+            // 绘制大陆点阵
+            val dotColor = Color(0xFF2DE2FF).copy(alpha = 0.6f)
+            ContourData.getAllContours().forEach { contour ->
+                for (i in contour.indices step 2) {
+                    if (i + 1 < contour.size) {
+                        val lon = contour[i]
+                        val lat = contour[i + 1]
+                        val p = project(lat, lon, 1.0, spin, tilt, cx, cy, radius)
+                        if (p.unitDepth >= 0f) {
+                            drawCircle(dotColor, radius = 2.5f, center = Offset(p.x, p.y))
+                        }
+                    }
+                }
+            }
+        }
+        GlobeRenderMode.REALISTIC -> {
+            // 真实地球模式（简化版，使用渐变模拟海洋和陆地）
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFF1E4D7C),  // 海洋亮部
+                        Color(0xFF0A2B4A),  // 海洋中部
+                        Color(0xFF051826)   // 海洋暗部
+                    ),
+                    center = Offset(cx - radius * 0.3f, cy - radius * 0.3f),
+                    radius = radius * 1.4f
+                ),
+                radius = radius, center = Offset(cx, cy)
+            )
+            // 简化的陆地轮廓（使用点阵但更密集）
+            val landColor = Color(0xFF3A7A5C).copy(alpha = 0.7f)
+            ContourData.getAllContours().forEach { contour ->
+                for (i in contour.indices step 2) {
+                    if (i + 1 < contour.size) {
+                        val lon = contour[i]
+                        val lat = contour[i + 1]
+                        val p = project(lat, lon, 1.0, spin, tilt, cx, cy, radius)
+                        if (p.unitDepth >= 0f) {
+                            // 绘制更大的点模拟陆地
+                            drawCircle(landColor, radius = 4.0f, center = Offset(p.x, p.y))
+                        }
+                    }
+                }
+            }
+        }
     }
-    // 轮廓
+
+    // 轮廓（所有模式通用）
     drawCircle(
         color = Color(0xFF2DE2FF).copy(alpha = 0.5f),
         radius = radius, center = Offset(cx, cy), style = Stroke(width = 1.6f)
@@ -362,6 +462,26 @@ private fun DrawScope.drawSatDot(c: Offset, color: Color, selected: Boolean) {
     drawCircle(Color.White, radius = 1.8f * s, center = c)
     if (selected) {
         drawCircle(color, radius = 16f, center = c, style = Stroke(width = 2f))
+    }
+}
+
+private fun DrawScope.drawOrbit(sp: SatSubPoint, spin: Float, tilt: Float, cx: Float, cy: Float, radius: Float, color: Color) {
+    // 简化的轨道绘制：基于当前卫星位置绘制一个椭圆轨道
+    // 这里使用简化的圆形轨道近似
+    val orbitColor = color.copy(alpha = 0.3f)
+    val r = 1.0 + sp.altKm / RE_KM
+    
+    // 绘制轨道点（每隔10度一个点）
+    var angle = 0
+    while (angle < 360) {
+        val orbitLat = sp.latDeg + 10 * kotlin.math.cos(Math.toRadians(angle.toDouble()))
+        val orbitLon = sp.lonDeg + 10 * kotlin.math.sin(Math.toRadians(angle.toDouble()))
+        
+        val p = project(orbitLat, orbitLon, r, spin, tilt, cx, cy, radius)
+        if (p.unitDepth >= 0f) {
+            drawCircle(orbitColor, radius = 1.5f, center = Offset(p.x, p.y))
+        }
+        angle += 10
     }
 }
 
@@ -392,6 +512,26 @@ private fun FilterChipItem(label: String, color: Color, active: Boolean, onClick
             label,
             color = if (active) Color(0xFF03040A) else Color(0xFFEAF6FF),
             fontSize = 13.sp,
+            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+private fun GlobeModeChip(label: String, active: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .background(
+                if (active) Color(0xFF2DE2FF) else Color(0xFF070A18).copy(alpha = 0.8f),
+                RoundedCornerShape(16.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Text(
+            label,
+            color = if (active) Color(0xFF03040A) else Color(0xFFEAF6FF),
+            fontSize = 11.sp,
             fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
         )
     }

@@ -14,14 +14,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +44,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.asiainfo.satellite.share.SatelliteShare
+import com.asiainfo.satellite.share.CloudUploader
+import kotlinx.coroutines.launch
 import com.asiainfo.satellite.R
 import com.asiainfo.satellite.ui.components.Starfield
 import com.asiainfo.satellite.ui.theme.Bg0
@@ -49,6 +63,14 @@ fun MainScreen(
     onAR: () -> Unit,
     onShare: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isUploading by remember { mutableStateOf(false) }
+    
+    val downloadQrBitmap = remember { 
+        // 生成APP下载二维码
+        SatelliteShare.qrBitmap(SatelliteShare.QR_URL, 200)
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -98,13 +120,83 @@ fun MainScreen(
             )
 
             Spacer(Modifier.height(28.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable(onClick = onShare).padding(8.dp)
+            
+            // APP下载二维码卡片
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        // 点击上传APK到云端
+                        if (!isUploading) {
+                            isUploading = true
+                            scope.launch {
+                                try {
+                                    // 获取当前APK文件
+                                    val apkFile = java.io.File(context.packageCodePath)
+                                    val apkBytes = apkFile.readBytes()
+                                    
+                                    // 上传到云端
+                                    val result = CloudUploader.uploadApk(apkBytes)
+                                    
+                                    // 更新二维码指向云端下载页面
+                                    val newQrBitmap = SatelliteShare.qrBitmap(result.page, 200)
+                                    // 这里可以更新状态来刷新二维码显示
+                                    
+                                    isUploading = false
+                                } catch (e: Exception) {
+                                    isUploading = false
+                                    // 处理上传失败
+                                }
+                            }
+                        }
+                    },
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0x8C121C36)
+                ),
+                shape = RoundedCornerShape(18.dp)
             ) {
-                Icon(Icons.Default.QrCode2, null, tint = TextDim, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.size(8.dp))
-                Text("生成分享二维码", color = TextDim, fontSize = 13.sp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(8.dp)
+                        ) {
+                            Icon(Icons.Default.QrCode2, null, tint = TextDim, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.size(8.dp))
+                            Text(if (isUploading) "正在上传APK..." else "APP下载二维码", color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        }
+                        Text(if (isUploading) "请稍候" else "扫码下载亚信卫星时刻", color = TextDim, fontSize = 11.sp)
+                    }
+                    
+                    // 显示二维码
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .background(Color.White, RoundedCornerShape(8.dp))
+                            .padding(4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isUploading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(30.dp),
+                                color = Cyan,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Image(
+                                bitmap = downloadQrBitmap.asImageBitmap(),
+                                contentDescription = "APP下载二维码",
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
             }
         }
 

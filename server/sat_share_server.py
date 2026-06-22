@@ -6,8 +6,12 @@
 接口：
   POST /upload[?id=xxx]   上传 PNG（请求体为原始图片字节，Content-Type: image/png）
                           返回 JSON: {"id","img","page"}
+  POST /upload-apk[?id=xxx] 上传 APK（请求体为原始APK字节，Content-Type: application/vnd.android.package-archive）
+                          返回 JSON: {"id","apk","page"}
   GET  /i/<id>.png        获取图片
+  GET  /a/<id>.apk        获取APK
   GET  /p/<id>            H5 页面：展示图片 + 下载按钮（用于二维码扫码后查看/下载/微信分享）
+  GET  /app               APP下载页面：提供APK下载
   GET  /health            健康检查
 """
 import json
@@ -25,6 +29,7 @@ PORT = int(os.environ.get("PORT", "8090"))
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "http://101.35.112.92:%d" % PORT)
 DATA_DIR = os.environ.get("DATA_DIR", "/opt/sat-share/data")
 MAX_BYTES = 20 * 1024 * 1024  # 20MB
+APK_MAX_BYTES = 100 * 1024 * 1024  # 100MB for APK
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -66,6 +71,75 @@ PAGE_HTML = """<!DOCTYPE html>
 </body>
 </html>"""
 
+APP_DOWNLOAD_HTML = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>亚信卫星时刻 · APP下载</title>
+<style>
+  body{{margin:0;background:#03040a;color:#eaf6ff;font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;text-align:center;}}
+  .wrap{{max-width:560px;margin:0 auto;padding:18px;}}
+  h1{{font-size:22px;letter-spacing:2px;margin:20px 0;color:#2de2ff;}}
+  .logo{{width:120px;height:120px;margin:20px auto;border-radius:24px;background:linear-gradient(135deg,#1e4d7c,#0a2b4a);display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(45,226,255,0.3);}}
+  .logo-icon{{font-size:48px;color:#2de2ff;}}
+  .desc{{color:#8aa0c0;font-size:15px;line-height:1.8;margin:20px 0;padding:0 16px;}}
+  .btn{{display:inline-block;margin:20px 8px;padding:16px 32px;border-radius:28px;background:#2de2ff;color:#03040a;font-weight:700;text-decoration:none;font-size:16px;transition:all 0.3s;}}
+  .btn:hover{{background:#4de2ff;transform:scale(1.05);}}
+  .features{{display:flex;justify-content:center;gap:20px;margin:30px 0;}}
+  .feature{{background:rgba(255,255,255,0.05);padding:16px;border-radius:12px;flex:1;}}
+  .feature-icon{{font-size:24px;margin-bottom:8px;}}
+  .feature-text{{color:#9fe8ff;font-size:13px;}}
+  .foot{{color:#54657f;font-size:11px;margin:30px 0;}}
+  .qr-section{{margin:30px 0;padding:20px;background:rgba(255,255,255,0.03);border-radius:16px;}}
+  .qr-img{{width:180px;height:180px;margin:10px auto;border:8px solid white;border-radius:8px;}}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>亚信卫星时刻</h1>
+    <div class="logo">
+      <span class="logo-icon">🌍</span>
+    </div>
+    <div class="desc">
+      探索浩瀚星空，实时观测卫星星座<br/>
+      AR实景增强，沉浸式卫星追踪体验
+    </div>
+    
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">🛰️</div>
+        <div class="feature-text">星座全景</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📱</div>
+        <div class="feature-text">AR卫星</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔗</div>
+        <div class="feature-text">云端分享</div>
+      </div>
+    </div>
+    
+    <div>
+      <a class="btn" href="{apk_url}" download="asiainfo-satellite.apk">下载 Android 版</a>
+    </div>
+    
+    <div class="qr-section">
+      <div style="color:#8aa0c0;font-size:14px;margin-bottom:10px;">扫码下载APP</div>
+      <img class="qr-img" src="{qr_url}" alt="下载二维码"/>
+    </div>
+    
+    <div class="tip" style="color:#6b7c99;font-size:12px;margin-top:20px;">
+      支持 Android 7.0 及以上版本<br/>
+      iOS 版本即将推出
+    </div>
+    
+    <div class="foot">ASIAINFO · SATELLITE MOMENT</div>
+  </div>
+</body>
+</html>"""
+
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "SatShare/1.0"
@@ -92,6 +166,9 @@ class Handler(BaseHTTPRequestHandler):
         m = re.match(r"^/i/([A-Za-z0-9_-]+)\.png$", path)
         if m:
             return self._serve_image(m.group(1))
+        m = re.match(r"^/a/([A-Za-z0-9_-]+)\.apk$", path)
+        if m:
+            return self._serve_apk(m.group(1))
         m = re.match(r"^/p/([A-Za-z0-9_-]+)$", path)
         if m:
             sid = m.group(1)
@@ -100,6 +177,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, "not found", "text/plain; charset=utf-8")
             img = "%s/i/%s.png" % (PUBLIC_BASE, sid)
             return self._send(200, PAGE_HTML.format(img=img), "text/html; charset=utf-8")
+        if path == "/app":
+            # APP下载页面
+            # 使用最新的APK文件
+            apk_files = [f for f in os.listdir(DATA_DIR) if f.endswith('.apk')]
+            if apk_files:
+                latest_apk = max(apk_files)
+                apk_url = "%s/a/%s" % (PUBLIC_BASE, latest_apk.replace('.apk', ''))
+                # 生成下载二维码
+                qr_url = "%s/app" % PUBLIC_BASE
+                return self._send(200, APP_DOWNLOAD_HTML.format(apk_url=apk_url, qr_url=qr_url), "text/html; charset=utf-8")
+            else:
+                return self._send(404, "APK not available", "text/plain; charset=utf-8")
         return self._send(404, json.dumps({"error": "not found"}))
 
     def _serve_image(self, sid):
@@ -110,32 +199,66 @@ class Handler(BaseHTTPRequestHandler):
             data = f.read()
         self._send(200, data, "image/png", extra={"Cache-Control": "public, max-age=86400"})
 
+    def _serve_apk(self, sid):
+        fp = os.path.join(DATA_DIR, sid + ".apk")
+        if not os.path.exists(fp):
+            return self._send(404, "not found", "text/plain; charset=utf-8")
+        with open(fp, "rb") as f:
+            data = f.read()
+        self._send(200, data, "application/vnd.android.package-archive", extra={"Cache-Control": "public, max-age=86400"})
+
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path != "/upload":
+        if parsed.path == "/upload-apk":
+            # APK上传
+            qs = parse_qs(parsed.query)
+            sid = (qs.get("id", [None])[0])
+            if sid and not ID_RE.match(sid):
+                return self._send(400, json.dumps({"error": "bad id"}))
+            if not sid:
+                sid = gen_id()
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = 0
+            if length <= 0 or length > APK_MAX_BYTES:
+                return self._send(400, json.dumps({"error": "bad length"}))
+            data = self.rfile.read(length)
+            fp = os.path.join(DATA_DIR, sid + ".apk")
+            with open(fp, "wb") as f:
+                f.write(data)
+            resp = {
+                "id": sid,
+                "apk": "%s/a/%s.apk" % (PUBLIC_BASE, sid),
+                "page": "%s/app" % PUBLIC_BASE,
+            }
+            return self._send(200, json.dumps(resp))
+        elif parsed.path == "/upload":
+            # 图片上传
+            qs = parse_qs(parsed.query)
+            sid = (qs.get("id", [None])[0])
+            if sid and not ID_RE.match(sid):
+                return self._send(400, json.dumps({"error": "bad id"}))
+            if not sid:
+                sid = gen_id()
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = 0
+            if length <= 0 or length > MAX_BYTES:
+                return self._send(400, json.dumps({"error": "bad length"}))
+            data = self.rfile.read(length)
+            fp = os.path.join(DATA_DIR, sid + ".png")
+            with open(fp, "wb") as f:
+                f.write(data)
+            resp = {
+                "id": sid,
+                "img": "%s/i/%s.png" % (PUBLIC_BASE, sid),
+                "page": "%s/p/%s" % (PUBLIC_BASE, sid),
+            }
+            return self._send(200, json.dumps(resp))
+        else:
             return self._send(404, json.dumps({"error": "not found"}))
-        qs = parse_qs(parsed.query)
-        sid = (qs.get("id", [None])[0])
-        if sid and not ID_RE.match(sid):
-            return self._send(400, json.dumps({"error": "bad id"}))
-        if not sid:
-            sid = gen_id()
-        try:
-            length = int(self.headers.get("Content-Length", "0"))
-        except ValueError:
-            length = 0
-        if length <= 0 or length > MAX_BYTES:
-            return self._send(400, json.dumps({"error": "bad length"}))
-        data = self.rfile.read(length)
-        fp = os.path.join(DATA_DIR, sid + ".png")
-        with open(fp, "wb") as f:
-            f.write(data)
-        resp = {
-            "id": sid,
-            "img": "%s/i/%s.png" % (PUBLIC_BASE, sid),
-            "page": "%s/p/%s" % (PUBLIC_BASE, sid),
-        }
-        return self._send(200, json.dumps(resp))
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))

@@ -22,6 +22,7 @@ object CloudUploader {
         .build()
 
     data class UploadResult(val id: String, val img: String, val page: String)
+    data class ApkUploadResult(val id: String, val apk: String, val page: String)
 
     /**
      * 上传 PNG 字节；可指定 id 以覆盖已有图片（用于先传无码图、再回填二维码后覆盖）。
@@ -36,6 +37,22 @@ object CloudUploader {
             val txt = resp.body?.string() ?: throw IllegalStateException("空响应")
             val j = JSONObject(txt)
             return UploadResult(j.getString("id"), j.getString("img"), j.getString("page"))
+        }
+    }
+
+    /**
+     * 上传 APK 字节；可指定 id 以覆盖已有文件。
+     * 失败抛异常。
+     */
+    fun uploadApk(apk: ByteArray, id: String? = null): ApkUploadResult {
+        val url = if (id != null) "$BASE/upload-apk?id=$id" else "$BASE/upload-apk"
+        val body = apk.toRequestBody("application/vnd.android.package-archive".toMediaType())
+        val req = Request.Builder().url(url).post(body).build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw IllegalStateException("APK上传失败 HTTP ${resp.code}")
+            val txt = resp.body?.string() ?: throw IllegalStateException("空响应")
+            val j = JSONObject(txt)
+            return ApkUploadResult(j.getString("id"), j.getString("apk"), j.getString("page"))
         }
     }
 }

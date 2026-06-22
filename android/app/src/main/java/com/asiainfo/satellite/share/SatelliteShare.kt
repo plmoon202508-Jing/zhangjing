@@ -75,6 +75,7 @@ object SatelliteShare {
         look: SatelliteLook,
         observerLat: Double?,
         observerLon: Double?,
+        userName: String? = null,
         qr: Bitmap? = null
     ): Bitmap {
         val template = loadTemplate(context)
@@ -93,7 +94,7 @@ object SatelliteShare {
 
         // 2) 邮票区
         val top = stampTop(w, h)
-        drawStamp(c, look, observerLat, observerLon, w.toFloat(), top, h.toFloat(), unit)
+        drawStamp(c, look, observerLat, observerLon, userName, w.toFloat(), top, h.toFloat(), unit)
 
         // 3) 二维码（如已生成）
         if (qr != null) drawQrOnto(bmp, qr)
@@ -107,6 +108,7 @@ object SatelliteShare {
         look: SatelliteLook,
         observerLat: Double?,
         observerLon: Double?,
+        userName: String?,
         w: Float, stampTop: Float, h: Float,
         unit: Float
     ) {
@@ -160,6 +162,12 @@ object SatelliteShare {
         y += 56f * unit
         c.drawText(look.satellite.constellation.displayName, padL, y, textPaint(accent, 34f * unit, true))
         y += 78f * unit
+
+        // 体验人姓名
+        userName?.let { name ->
+            c.drawText("体验人：$name", padL, y, textPaint(accent, 28f * unit, true))
+            y += 60f * unit
+        }
 
         // 信息行
         val labelPaint = textPaint(Color.parseColor("#6B7C99"), 30f * unit, false)
