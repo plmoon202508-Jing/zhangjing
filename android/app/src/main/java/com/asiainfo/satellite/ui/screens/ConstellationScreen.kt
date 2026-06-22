@@ -37,7 +37,16 @@ import com.asiainfo.satellite.data.SatSubPoint
 import com.asiainfo.satellite.data.Satellite
 import com.asiainfo.satellite.data.SatelliteConstellation
 import com.asiainfo.satellite.data.SatelliteRepository
-import com.asiainfo.satellite.data.ContourData
+
+// 简化的大陆轮廓数据
+private val CONTINENT_POINTS = listOf(
+    listOf(-100.0, 40.0),  // 北美
+    listOf(-60.0, -15.0),   // 南美
+    listOf(10.0, 50.0),     // 欧洲
+    listOf(20.0, 0.0),      // 非洲
+    listOf(100.0, 40.0),    // 亚洲
+    listOf(135.0, -25.0)    // 澳大利亚
+)
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -64,7 +73,6 @@ private const val RE_KM = 6371.0
 /** 地球渲染模式 */
 enum class GlobeRenderMode {
     GRID,       // 网格模式（当前默认）
-    DOT_MATRIX, // 大陆点阵模式
     REALISTIC   // 真实地球模式
 }
 
@@ -260,11 +268,6 @@ fun ConstellationScreen(
                     onClick = { renderMode = GlobeRenderMode.GRID }
                 )
                 GlobeModeChip(
-                    label = "点阵",
-                    active = renderMode == GlobeRenderMode.DOT_MATRIX,
-                    onClick = { renderMode = GlobeRenderMode.DOT_MATRIX }
-                )
-                GlobeModeChip(
                     label = "真实",
                     active = renderMode == GlobeRenderMode.REALISTIC,
                     onClick = { renderMode = GlobeRenderMode.REALISTIC }
@@ -391,58 +394,30 @@ private fun DrawScope.drawGlobe(cx: Float, cy: Float, radius: Float, spin: Float
                 lonLine += 30
             }
         }
-        GlobeRenderMode.DOT_MATRIX -> {
-            // 深色球体背景
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF0A1B33), Color(0xFF050D1C)),
-                    center = Offset(cx - radius * 0.3f, cy - radius * 0.3f),
-                    radius = radius * 1.4f
-                ),
-                radius = radius, center = Offset(cx, cy)
-            )
-            // 绘制大陆点阵
-            val dotColor = Color(0xFF2DE2FF).copy(alpha = 0.6f)
-            ContourData.getAllContours().forEach { contour ->
-                for (i in contour.indices step 2) {
-                    if (i + 1 < contour.size) {
-                        val lon = contour[i]
-                        val lat = contour[i + 1]
-                        val p = project(lat, lon, 1.0, spin, tilt, cx, cy, radius)
-                        if (p.unitDepth >= 0f) {
-                            drawCircle(dotColor, radius = 2.5f, center = Offset(p.x, p.y))
-                        }
-                    }
-                }
-            }
-        }
         GlobeRenderMode.REALISTIC -> {
-            // 真实地球模式（简化版，使用渐变模拟海洋和陆地）
+            // 真实地球模式（使用更明显的海洋和陆地颜色）
+            // 海洋背景
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFF1E4D7C),  // 海洋亮部
-                        Color(0xFF0A2B4A),  // 海洋中部
-                        Color(0xFF051826)   // 海洋暗部
+                        Color(0xFF1E5A8A),  // 海洋亮部
+                        Color(0xFF0D3A6C),  // 海洋中部
+                        Color(0xFF052040)   // 海洋暗部
                     ),
                     center = Offset(cx - radius * 0.3f, cy - radius * 0.3f),
                     radius = radius * 1.4f
                 ),
                 radius = radius, center = Offset(cx, cy)
             )
-            // 简化的陆地轮廓（使用点阵但更密集）
-            val landColor = Color(0xFF3A7A5C).copy(alpha = 0.7f)
-            ContourData.getAllContours().forEach { contour ->
-                for (i in contour.indices step 2) {
-                    if (i + 1 < contour.size) {
-                        val lon = contour[i]
-                        val lat = contour[i + 1]
-                        val p = project(lat, lon, 1.0, spin, tilt, cx, cy, radius)
-                        if (p.unitDepth >= 0f) {
-                            // 绘制更大的点模拟陆地
-                            drawCircle(landColor, radius = 4.0f, center = Offset(p.x, p.y))
-                        }
-                    }
+            // 陆地轮廓（使用更密集的点阵模拟大陆）
+            val landColor = Color(0xFF2D5A3D).copy(alpha = 0.8f)
+            CONTINENT_POINTS.forEach { point ->
+                val lon = point[0]
+                val lat = point[1]
+                val p = project(lat, lon, 1.0, spin, tilt, cx, cy, radius)
+                if (p.unitDepth >= 0f) {
+                    // 绘制更大的点模拟陆地
+                    drawCircle(landColor, radius = 5.0f, center = Offset(p.x, p.y))
                 }
             }
         }
@@ -466,22 +441,24 @@ private fun DrawScope.drawSatDot(c: Offset, color: Color, selected: Boolean) {
 }
 
 private fun DrawScope.drawOrbit(sp: SatSubPoint, spin: Float, tilt: Float, cx: Float, cy: Float, radius: Float, color: Color) {
-    // 简化的轨道绘制：基于当前卫星位置绘制一个椭圆轨道
-    // 这里使用简化的圆形轨道近似
-    val orbitColor = color.copy(alpha = 0.3f)
+    // 绘制卫星轨道线（增强版）
+    val orbitColor = color.copy(alpha = 0.4f)
     val r = 1.0 + sp.altKm / RE_KM
     
-    // 绘制轨道点（每隔10度一个点）
-    var angle = 0
-    while (angle < 360) {
-        val orbitLat = sp.latDeg + 10 * kotlin.math.cos(Math.toRadians(angle.toDouble()))
-        val orbitLon = sp.lonDeg + 10 * kotlin.math.sin(Math.toRadians(angle.toDouble()))
+    // 绘制完整的椭圆轨道
+    var prev: Proj? = null
+    for (angle in 0..360 step 5) {
+        val orbitLat = sp.latDeg + 15 * kotlin.math.cos(Math.toRadians(angle.toDouble()))
+        val orbitLon = sp.lonDeg + 15 * kotlin.math.sin(Math.toRadians(angle.toDouble()))
         
         val p = project(orbitLat, orbitLon, r, spin, tilt, cx, cy, radius)
         if (p.unitDepth >= 0f) {
             drawCircle(orbitColor, radius = 1.5f, center = Offset(p.x, p.y))
+            if (prev != null && prev.unitDepth >= 0f) {
+                drawLine(orbitColor, Offset(prev.x, prev.y), Offset(p.x, p.y), strokeWidth = 1.0f)
+            }
         }
-        angle += 10
+        prev = p
     }
 }
 

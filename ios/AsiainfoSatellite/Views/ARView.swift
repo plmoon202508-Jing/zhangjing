@@ -241,14 +241,14 @@ struct SatelliteOverlay: View {
                     }
                 }
             }
+            .contentShape(Rectangle())
+            .gesture(
+                TapGesture()
+                    .onEnded { location in
+                        handleTap(at: location, in: looks, geometry: geometry)
+                    }
+            )
         }
-        .contentShape(Rectangle())
-        .gesture(
-            TapGesture()
-                .onEnded { location in
-                    handleTap(at: location, in: looks)
-                }
-        )
     }
     
     private func project(look: SatelliteLook, deviceAzimuth: Double, devicePitch: Double, w: CGFloat, h: CGFloat) -> CGPoint? {
@@ -353,7 +353,7 @@ struct ARSatelliteDetailSheet: View {
                 
                 Divider()
                 
-                // 详细数据
+                // 详细数据（一排2个指标）
                 HStack {
                     VStack {
                         Text("方位角")
@@ -368,11 +368,23 @@ struct ARSatelliteDetailSheet: View {
                         Text("\(Int(satellite.elevationDeg))°")
                             .font(.headline)
                     }
-                    Spacer()
+                }
+                .padding()
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(10)
+                
+                HStack {
                     VStack {
                         Text("斜距")
                             .foregroundColor(.gray)
                         Text("\(Int(satellite.rangeKm)) km")
+                            .font(.headline)
+                    }
+                    Spacer()
+                    VStack {
+                        Text("轨道高度")
+                            .foregroundColor(.gray)
+                        Text("\(Int(satellite.altitudeKm)) km")
                             .font(.headline)
                     }
                 }

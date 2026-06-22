@@ -345,12 +345,12 @@ private fun SatelliteDetailSheet(
 
             Spacer(Modifier.height(20.dp))
 
-            // 信息网格
+            // 信息网格（一排2个指标）
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 DetailItem("方位角", "${look.azimuthDeg.toInt()}°", Color(0xFF2DE2FF))
                 DetailItem("俯仰角", "${look.elevationDeg.toInt()}°", Color(0xFF4DFFB8))
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 DetailItem("斜距", "${look.rangeKm.toInt()} km", Color(0xFFA05BFF))
                 DetailItem("轨道高度", "${look.altitudeKm.toInt()} km", Color(0xFFFF4ECD))

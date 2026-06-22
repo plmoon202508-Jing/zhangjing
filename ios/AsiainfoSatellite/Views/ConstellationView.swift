@@ -118,7 +118,6 @@ struct ConstellationView: View {
             
             Picker("渲染模式", selection: $renderMode) {
                 Text("网格").tag(GlobeRenderMode.grid)
-                Text("点阵").tag(GlobeRenderMode.dotMatrix)
                 Text("真实").tag(GlobeRenderMode.realistic)
             }
             .pickerStyle(SegmentedPickerStyle())
@@ -143,7 +142,7 @@ struct ConstellationView: View {
     
     private func constellationColor(_ constellation: SatelliteConstellation?) -> Color {
         switch constellation {
-        case .G60: return Color(red: 1.0, green: 0.3, green: 0.8)
+        case .G60: return Color(red: 1.0, green: 0.3, blue: 0.8)
         case .GW: return Color(red: 0.2, green: 0.9, blue: 1.0)
         case .TQ: return Color(red: 0.3, green: 1.0, blue: 0.7)
         case nil: return Color(red: 0.6, green: 0.9, blue: 1.0)
@@ -153,7 +152,6 @@ struct ConstellationView: View {
 
 enum GlobeRenderMode {
     case grid
-    case dotMatrix
     case realistic
 }
 
@@ -220,8 +218,6 @@ struct GlobeView: View {
         switch mode {
         case .grid:
             drawGrid(context: context, cx: cx, cy: cy, radius: radius, spin: spin, tilt: tilt)
-        case .dotMatrix:
-            drawContinents(context: context, cx: cx, cy: cy, radius: radius, spin: spin, tilt: tilt)
         case .realistic:
             drawRealistic(context: context, cx: cx, cy: cy, radius: radius, spin: spin, tilt: tilt)
         }
@@ -264,40 +260,29 @@ struct GlobeView: View {
         }
     }
     
-    private func drawContinents(context: GraphicsContext, cx: CGFloat, cy: CGFloat, radius: CGFloat, spin: Double, tilt: Double) {
-        // 简化的大陆点阵
+    private func drawRealistic(context: GraphicsContext, cx: CGFloat, cy: CGFloat, radius: CGFloat, spin: Double, tilt: Double) {
+        // 真实地球模式（使用更明显的海洋和陆地颜色）
+        let oceanGradient = Gradient(colors: [
+            Color(red: 0.12, green: 0.35, blue: 0.54),
+            Color(red: 0.05, green: 0.23, blue: 0.42),
+            Color(red: 0.02, green: 0.13, blue: 0.25)
+        ])
+        context.fill(Path(ellipseIn: CGRect(x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2)), with: .radialGradient(oceanGradient, center: CGPoint(x: cx - radius * 0.3, y: cy - radius * 0.3), startRadius: 0, endRadius: radius * 1.4))
+        
+        // 陆地（使用更密集的点阵模拟大陆）
+        let landColor = Color(red: 0.18, green: 0.35, blue: 0.24).opacity(0.8)
         let continentPoints = [
             (lat: 40.0, lon: -100.0), // 北美
             (lat: -15.0, lon: -60.0), // 南美
             (lat: 50.0, lon: 10.0), // 欧洲
             (lat: 0.0, lon: 20.0), // 非洲
             (lat: 40.0, lon: 100.0), // 亚洲
-            (lat: -25.0, lon: 135.0), // 澳大利亚
+            (lat: -25.0, lon: 135.0) // 澳大利亚
         ]
-        
         for point in continentPoints {
             let p = project(lat: point.lat, lon: point.lon, spin: spin, tilt: tilt, cx: cx, cy: cy, radius: radius)
             if p.depth >= 0 {
-                context.fill(Path(ellipseIn: CGRect(x: p.x - 2.5, y: p.y - 2.5, width: 5, height: 5)), with: .color(.blue.opacity(0.6)))
-            }
-        }
-    }
-    
-    private func drawRealistic(context: GraphicsContext, cx: CGFloat, cy: CGFloat, radius: CGFloat, spin: Double, tilt: Double) {
-        // 真实地球模式（简化版）
-        let oceanGradient = Gradient(colors: [
-            Color(red: 0.1, green: 0.3, blue: 0.5),
-            Color(red: 0.04, green: 0.17, blue: 0.29),
-            Color(red: 0.02, green: 0.09, blue: 0.15)
-        ])
-        context.fill(Path(ellipseIn: CGRect(x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2)), with: .radialGradient(oceanGradient, center: CGPoint(x: cx - radius * 0.3, y: cy - radius * 0.3), startRadius: 0, endRadius: radius * 1.4))
-        
-        // 陆地（简化版）
-        let landColor = Color(red: 0.2, green: 0.5, blue: 0.4).opacity(0.7)
-        for point in [(lat: 40.0, lon: -100.0), (lat: -15.0, lon: -60.0), (lat: 50.0, lon: 10.0), (lat: 0.0, lon: 20.0), (lat: 40.0, lon: 100.0), (lat: -25.0, lon: 135.0)] {
-            let p = project(lat: point.lat, lon: point.lon, spin: spin, tilt: tilt, cx: cx, cy: cy, radius: radius)
-            if p.depth >= 0 {
-                context.fill(Path(ellipseIn: CGRect(x: p.x - 4, y: p.y - 4, width: 8, height: 8)), with: .color(landColor))
+                context.fill(Path(ellipseIn: CGRect(x: p.x - 5, y: p.y - 5, width: 10, height: 10)), with: .color(landColor))
             }
         }
     }
@@ -315,7 +300,24 @@ struct GlobeView: View {
         context.fill(Path(ellipseIn: CGRect(x: position.x - 1.8 * scale, y: position.y - 1.8 * scale, width: 3.6 * scale, height: 3.6 * scale)), with: .color(.white))
         
         if isSelected {
+            // 绘制轨道线
+            drawOrbit(context: context, position: position, color: .blue)
+            
             context.stroke(Path(ellipseIn: CGRect(x: position.x - 16, y: position.y - 16, width: 32, height: 32)), with: .color(.blue), lineWidth: 2)
+        }
+    }
+    
+    private func drawOrbit(context: GraphicsContext, position: ProjectedPoint, color: Color) {
+        // 简化的轨道绘制
+        let orbitColor = color.opacity(0.4)
+        let orbitRadius: CGFloat = 30
+        
+        for angle in stride(from: 0, to: 360, by: 10) {
+            let angleRad = angle * .pi / 180
+            let orbitX = position.x + orbitRadius * cos(angleRad)
+            let orbitY = position.y + orbitRadius * sin(angleRad) * 0.4
+            
+            context.fill(Path(ellipseIn: CGRect(x: orbitX - 1, y: orbitY - 1, width: 2, height: 2)), with: .color(orbitColor))
         }
     }
     
