@@ -94,6 +94,33 @@ class SatelliteRepository {
         return looks
     }
 
+    /**
+     * 计算一批卫星的星下点（地理经纬度+高度），用于 2D 旋转地球投影。
+     * 卫星星下点与观测者无关，这里用原点地面站仅满足 API 形参。
+     */
+    fun computeSubPoints(
+        satellites: List<Satellite>,
+        date: Date = Date()
+    ): List<SatSubPoint> {
+        val gs = GroundStationPosition(0.0, 0.0, 0.0)
+        val out = ArrayList<SatSubPoint>(satellites.size)
+        for (sat in satellites) {
+            try {
+                val pos = sat.propagator.getPosition(gs, date)
+                var lon = Math.toDegrees(pos.longitude)
+                lon = ((lon + 180.0) % 360.0 + 360.0) % 360.0 - 180.0
+                out += SatSubPoint(
+                    satellite = sat,
+                    latDeg = Math.toDegrees(pos.latitude),
+                    lonDeg = lon,
+                    altKm = pos.altitude
+                )
+            } catch (_: Exception) {
+            }
+        }
+        return out
+    }
+
     fun filterByConstellation(
         satellites: List<Satellite>,
         constellation: SatelliteConstellation?

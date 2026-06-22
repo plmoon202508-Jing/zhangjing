@@ -38,6 +38,16 @@ data class Satellite(
 )
 
 /**
+ * 卫星星下点（地理经纬度 + 高度），用于在 2D 旋转地球上投影显示。
+ */
+data class SatSubPoint(
+    val satellite: Satellite,
+    val latDeg: Double,   // 纬度 -90~90
+    val lonDeg: Double,   // 经度 -180~180
+    val altKm: Double     // 轨道高度 km
+)
+
+/**
  * 卫星相对观测者的瞬时方位信息
  */
 data class SatelliteLook(
