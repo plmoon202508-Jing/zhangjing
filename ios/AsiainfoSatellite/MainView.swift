@@ -42,11 +42,15 @@ struct HomeView: View {
                 VStack(spacing: 20) {
                     Spacer()
                     
-                    // Logo
-                    Image("asiainfo_logo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 200, height: 96)
+                    // Logo占位符
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(Color.blue.opacity(0.2))
+                            .frame(width: 200, height: 96)
+                        
+                        Text("🌍")
+                            .font(.system(size: 48))
+                    }
                     
                     Text("亚信卫星时刻")
                         .font(.title)
@@ -80,7 +84,7 @@ struct HomeView: View {
                     
                     Spacer()
                     
-                    // 下载二维码
+                    // 下载二维码占位符
                     VStack {
                         HStack {
                             Image(systemName: "qrcode")
@@ -147,32 +151,6 @@ struct NavigationButton: View {
                 .stroke(color.opacity(0.4), lineWidth: 1)
         )
         .cornerRadius(18)
-    }
-}
-
-struct ConstellationView: View {
-    var body: some View {
-        NavigationView {
-            ZStack {
-                Color.black.ignoresSafeArea()
-                Text("星座全景功能开发中...")
-                    .foregroundColor(.white)
-            }
-            .navigationTitle("星座全景")
-        }
-    }
-}
-
-struct ARView: View {
-    var body: some View {
-        NavigationView {
-            ZStack {
-                Color.black.ignoresSafeArea()
-                Text("AR卫星功能开发中...")
-                    .foregroundColor(.white)
-            }
-            .navigationTitle("AR卫星")
-        }
     }
 }
 
