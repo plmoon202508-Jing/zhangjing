@@ -183,7 +183,7 @@ class Handler(BaseHTTPRequestHandler):
             apk_files = [f for f in os.listdir(DATA_DIR) if f.endswith('.apk')]
             if apk_files:
                 latest_apk = max(apk_files)
-                apk_url = "%s/a/%s" % (PUBLIC_BASE, latest_apk.replace('.apk', ''))
+                apk_url = "%s/a/%s.apk" % (PUBLIC_BASE, latest_apk.replace('.apk', ''))
                 # 生成下载二维码
                 qr_url = "%s/app" % PUBLIC_BASE
                 return self._send(200, APP_DOWNLOAD_HTML.format(apk_url=apk_url, qr_url=qr_url), "text/html; charset=utf-8")
