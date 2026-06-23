@@ -164,26 +164,31 @@ object SatelliteShare {
         c.drawText("$constellationText$userNameText", padL + 400f * unit, y, textPaint(accent, 28f * unit, true))
         y += 70f * unit
 
-        // 卫星指标（2排，每排2个）
-        val labelPaint = textPaint(Color.parseColor("#6B7C99"), 28f * unit, false)
-        val valuePaint = textPaint(Color.parseColor("#0B1A33"), 36f * unit, true)
-        val lineGap = 70f * unit
-        val infoX2 = padL + 300f * unit
-        
-        // 第一排
-        drawKV(c, "方位角", "${look.azimuthDeg.toInt()}°", padL, infoX2, y, labelPaint, valuePaint); y += lineGap
-        drawKV(c, "俯仰角", "${look.elevationDeg.toInt()}°", padL, infoX2, y, labelPaint, valuePaint); y += lineGap
-        
-        // 第二排
-        drawKV(c, "斜距", "${look.rangeKm.toInt()} km", padL, infoX2, y, labelPaint, valuePaint); y += lineGap
-        drawKV(c, "轨道高度", "${look.altitudeKm.toInt()} km", padL, infoX2, y, labelPaint, valuePaint); y += lineGap + 8f * unit
+        // 卫星 6 项信息（两列呈现：标签在上、数值在下）
+        val labelPaint = textPaint(Color.parseColor("#6B7C99"), 26f * unit, false)
+        val valuePaint = textPaint(Color.parseColor("#0B1A33"), 34f * unit, true)
+        val valuePaintSm = textPaint(Color.parseColor("#0B1A33"), 28f * unit, true)
+        val col1X = padL
+        val col2X = padL + 330f * unit
+        val rowGap = 104f * unit
+        val labelToValue = 40f * unit
 
-        // 观测信息
         val time = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA).format(Date())
         val locStr = if (observerLat != null && observerLon != null)
             String.format(Locale.CHINA, "%.2f°, %.2f°", observerLat, observerLon) else "未知"
-        c.drawText("观测时间  $time", padL, y, labelPaint); y += 52f * unit
-        c.drawText("观测位置  $locStr", padL, y, labelPaint)
+
+        // 第一行
+        drawCell(c, "方位角", "${look.azimuthDeg.toInt()}°", col1X, y, labelPaint, valuePaint, labelToValue)
+        drawCell(c, "俯仰角", "${look.elevationDeg.toInt()}°", col2X, y, labelPaint, valuePaint, labelToValue)
+        y += rowGap
+        // 第二行
+        drawCell(c, "斜距", "${look.rangeKm.toInt()} km", col1X, y, labelPaint, valuePaint, labelToValue)
+        drawCell(c, "轨道高度", "${look.altitudeKm.toInt()} km", col2X, y, labelPaint, valuePaint, labelToValue)
+        y += rowGap
+        // 第三行
+        drawCell(c, "观测时间", time, col1X, y, labelPaint, valuePaintSm, labelToValue)
+        drawCell(c, "观测位置", locStr, col2X, y, labelPaint, valuePaintSm, labelToValue)
+        y += rowGap
 
         // 二维码占位框 + 文案（右下角）
         val qrRect = qrRectFor(w.toInt(), h.toInt())
@@ -203,7 +208,7 @@ object SatelliteShare {
         val inset = 22f * unit
         val bottom = h - margin - inset - 60f * unit
         val right = w - margin - inset - 36f * unit
-        val size = 300f * unit
+        val size = 220f * unit
         return RectF(right - size, bottom - size, right, bottom)
     }
 
@@ -217,13 +222,14 @@ object SatelliteShare {
         c.drawBitmap(qr, null, dst, Paint(Paint.FILTER_BITMAP_FLAG))
     }
 
-    private fun drawKV(
+    /** 两列布局单元格：标签在上、数值在下 */
+    private fun drawCell(
         c: Canvas, label: String, value: String,
-        labelX: Float, valueX: Float, y: Float,
-        labelPaint: Paint, valuePaint: Paint
+        x: Float, y: Float,
+        labelPaint: Paint, valuePaint: Paint, labelToValue: Float
     ) {
-        c.drawText(label, labelX, y, labelPaint)
-        c.drawText(value, valueX, y, valuePaint)
+        c.drawText(label, x, y, labelPaint)
+        c.drawText(value, x, y + labelToValue, valuePaint)
     }
 
     private fun constellationColor(look: SatelliteLook): Int = when (look.satellite.constellation) {

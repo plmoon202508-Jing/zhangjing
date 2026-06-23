@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -308,6 +311,8 @@ private fun SatelliteDetailSheet(
     val sheetState = rememberModalBottomSheetState()
     var sharing by remember { mutableStateOf(false) }
     var shareMsg by remember { mutableStateOf("") }
+    var qrDialogBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var shareImage by remember { mutableStateOf<Bitmap?>(null) }
     val accent = constellationColor(look.satellite.constellation)
 
     ModalBottomSheet(
@@ -364,13 +369,14 @@ private fun SatelliteDetailSheet(
                     sharing = true
                     shareMsg = ""
                     scope.launch {
-                        val bmp = withContext(Dispatchers.Default) {
+                        val result = withContext(Dispatchers.Default) {
                             // 1) 生成邮票分享图（二维码位预留）
                             val base = SatelliteShare.buildShareBitmap(
                                 context, look, observer?.latitude, observer?.longitude, userName
                             )
                             // 2) 上传云主机拿到 H5 查看/下载页地址；二维码即编码该页
                             var pageUrl = SatelliteShare.QR_URL
+                            var msg = ""
                             try {
                                 val pngNoQr = SatelliteShare.bitmapToPng(base)
                                 val up = CloudUploader.upload(pngNoQr)
@@ -385,14 +391,15 @@ private fun SatelliteDetailSheet(
                                 val qr = SatelliteShare.qrBitmap(pageUrl, 480)
                                 SatelliteShare.drawQrOnto(base, qr)
                                 qr.recycle()
-                                shareMsg = "云端上传失败，已生成本地分享图"
+                                msg = "云端上传失败，已生成本地分享图"
                             }
-                            base
+                            // 4) 生成用于弹窗展示的二维码（编码下载页地址）
+                            val dialogQr = SatelliteShare.qrBitmap(pageUrl, 600)
+                            Triple(base, dialogQr, msg)
                         }
-                        SatelliteShare.shareBitmap(
-                            context, bmp,
-                            "我在「亚信卫星时刻」捕捉到了 ${look.satellite.name}！"
-                        )
+                        shareImage = result.first
+                        qrDialogBitmap = result.second
+                        shareMsg = result.third
                         sharing = false
                     }
                 },
@@ -408,7 +415,7 @@ private fun SatelliteDetailSheet(
                     Spacer(Modifier.width(10.dp))
                     Text("正在上传并生成分享图…", color = Color(0xFF03040A), fontWeight = FontWeight.Bold)
                 } else {
-                    Text("上传云端并分享", color = Color(0xFF03040A), fontWeight = FontWeight.Bold)
+                    Text("生成分享图并出码", color = Color(0xFF03040A), fontWeight = FontWeight.Bold)
                 }
             }
             if (shareMsg.isNotEmpty()) {
@@ -416,6 +423,51 @@ private fun SatelliteDetailSheet(
                 Text(shareMsg, color = Color(0xFFFFB86B), fontSize = 12.sp)
             }
         }
+    }
+
+    // 生成完成后自动弹出二维码弹窗，便于用户扫码下载图片
+    val qr = qrDialogBitmap
+    if (qr != null) {
+        AlertDialog(
+            onDismissRequest = { qrDialogBitmap = null },
+            containerColor = Color(0xFF0B1226),
+            title = {
+                Text("扫码下载分享图", color = Color.White, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Image(
+                        bitmap = qr.asImageBitmap(),
+                        contentDescription = "下载二维码",
+                        modifier = Modifier
+                            .size(220.dp)
+                            .background(Color.White, RoundedCornerShape(12.dp))
+                            .padding(10.dp)
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        "用手机相机或微信「扫一扫」，即可查看并下载这张卫星分享图",
+                        color = Color(0xFF8AA0C0),
+                        fontSize = 13.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    shareImage?.let {
+                        SatelliteShare.shareBitmap(
+                            context, it,
+                            "我在「亚信卫星时刻」捕捉到了 ${look.satellite.name}！"
+                        )
+                    }
+                }) { Text("系统分享", color = Color(0xFF2DE2FF), fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { qrDialogBitmap = null }) {
+                    Text("关闭", color = Color(0xFF8AA0C0))
+                }
+            }
+        )
     }
 }
 
