@@ -37,6 +37,9 @@ import com.asiainfo.satellite.data.SatSubPoint
 import com.asiainfo.satellite.data.Satellite
 import com.asiainfo.satellite.data.SatelliteConstellation
 import com.asiainfo.satellite.data.SatelliteRepository
+import com.asiainfo.satellite.data.UserNameStore
+import com.asiainfo.satellite.share.CloudUploader
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -329,6 +332,21 @@ fun ConstellationScreen(
             onDismiss = { selected = null },
             onSave = { newName ->
                 nameStore.set(sp.satellite.tle.noradId, newName)
+                // 命名（非清除）时同步上报云端大屏
+                if (!newName.isNullOrBlank()) {
+                    scope.launch(Dispatchers.IO) {
+                        CloudUploader.postNaming(
+                            satId = sp.satellite.tle.noradId,
+                            satName = sp.satellite.name,
+                            customName = newName,
+                            user = UserNameStore.getUserName(),
+                            constellation = sp.satellite.constellation.displayName,
+                            lat = sp.latDeg,
+                            lon = sp.lonDeg,
+                            alt = sp.altKm
+                        )
+                    }
+                }
                 selected = null
             }
         )

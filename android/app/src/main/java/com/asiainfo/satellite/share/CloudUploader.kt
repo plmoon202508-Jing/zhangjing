@@ -41,6 +41,39 @@ object CloudUploader {
     }
 
     /**
+     * 上报星座全景命名事件到云端大屏（/screen 实时展示）。
+     * 失败仅返回 false，不影响本地命名。
+     */
+    fun postNaming(
+        satId: String,
+        satName: String,
+        customName: String,
+        user: String?,
+        constellation: String,
+        lat: Double,
+        lon: Double,
+        alt: Double
+    ): Boolean {
+        return try {
+            val json = JSONObject().apply {
+                put("satId", satId)
+                put("satName", satName)
+                put("customName", customName)
+                put("user", user ?: "")
+                put("constellation", constellation)
+                put("lat", lat)
+                put("lon", lon)
+                put("alt", alt)
+            }
+            val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val req = Request.Builder().url("$BASE/name").post(body).build()
+            client.newCall(req).execute().use { resp -> resp.isSuccessful }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
      * 上传 APK 字节；可指定 id 以覆盖已有文件。
      * 失败抛异常。
      */
