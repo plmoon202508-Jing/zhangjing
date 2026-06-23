@@ -57,11 +57,18 @@ struct ConstellationView: View {
                     )
                 }
                 
-                // 渲染模式切换
-                renderModePicker
-                
                 // 底部信息
                 satelliteInfo
+            }
+            
+            // 渲染模式切换（右下角）
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    renderModePicker
+                }
+                .padding()
             }
             
             // 加载状态
@@ -263,14 +270,16 @@ struct GlobeView: View {
     private func drawRealistic(context: GraphicsContext, cx: CGFloat, cy: CGFloat, radius: CGFloat, spin: Double, tilt: Double) {
         // 真实地球模式（使用更明显的海洋和陆地颜色）
         let oceanGradient = Gradient(colors: [
-            Color(red: 0.12, green: 0.35, blue: 0.54),
-            Color(red: 0.05, green: 0.23, blue: 0.42),
-            Color(red: 0.02, green: 0.13, blue: 0.25)
+            Color(red: 0.04, green: 0.29, blue: 0.54),
+            Color(red: 0.02, green: 0.16, blue: 0.35),
+            Color(red: 0.01, green: 0.08, blue: 0.19)
         ])
         context.fill(Path(ellipseIn: CGRect(x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2)), with: .radialGradient(oceanGradient, center: CGPoint(x: cx - radius * 0.3, y: cy - radius * 0.3), startRadius: 0, endRadius: radius * 1.4))
         
-        // 陆地（使用更密集的点阵模拟大陆）
-        let landColor = Color(red: 0.18, green: 0.35, blue: 0.24).opacity(0.8)
+        // 陆地（使用更密集的点阵模拟大陆，增加更多点）
+        let landColor = Color(red: 0.1, green: 0.35, blue: 0.23).opacity(0.9)
+        
+        // 基础大陆点
         let continentPoints = [
             (lat: 40.0, lon: -100.0), // 北美
             (lat: -15.0, lon: -60.0), // 南美
@@ -279,10 +288,43 @@ struct GlobeView: View {
             (lat: 40.0, lon: 100.0), // 亚洲
             (lat: -25.0, lon: 135.0) // 澳大利亚
         ]
+        
+        // 扩展大陆点（使大陆更明显）
+        let expandedContinents = [
+            // 北美 - 更多点
+            (lat: 50.0, lon: -110.0), (lat: 45.0, lon: -100.0), (lat: 40.0, lon: -90.0), (lat: 35.0, lon: -80.0),
+            (lat: 30.0, lon: -70.0), (lat: 25.0, lon: -60.0), (lat: 20.0, lon: -50.0), (lat: 15.0, lon: -40.0),
+            (lat: 10.0, lon: -30.0),
+            // 南美 - 更多点
+            (lat: -5.0, lon: -75.0), (lat: -10.0, lon: -65.0), (lat: -15.0, lon: -55.0), (lat: -20.0, lon: -45.0),
+            (lat: -25.0, lon: -35.0),
+            // 欧洲 - 更多点
+            (lat: 55.0, lon: 0.0), (lat: 50.0, lon: 10.0), (lat: 45.0, lon: 20.0), (lat: 40.0, lon: 30.0),
+            (lat: 35.0, lon: 40.0),
+            // 非洲 - 更多点
+            (lat: 35.0, lon: 10.0), (lat: 30.0, lon: 20.0), (lat: 25.0, lon: 30.0), (lat: 20.0, lon: 40.0),
+            (lat: 15.0, lon: 50.0),
+            // 亚洲 - 更多点
+            (lat: 55.0, lon: 60.0), (lat: 50.0, lon: 70.0), (lat: 45.0, lon: 80.0), (lat: 40.0, lon: 90.0),
+            (lat: 35.0, lon: 100.0), (lat: 30.0, lon: 110.0), (lat: 25.0, lon: 120.0), (lat: 20.0, lon: 130.0),
+            (lat: 15.0, lon: 140.0),
+            // 澳大利亚 - 更多点
+            (lat: -20.0, lon: 115.0), (lat: -25.0, lon: 125.0), (lat: -30.0, lon: 135.0), (lat: -35.0, lon: 145.0)
+        ]
+        
+        // 绘制基础大陆点
         for point in continentPoints {
             let p = project(lat: point.lat, lon: point.lon, spin: spin, tilt: tilt, cx: cx, cy: cy, radius: radius)
             if p.depth >= 0 {
-                context.fill(Path(ellipseIn: CGRect(x: p.x - 5, y: p.y - 5, width: 10, height: 10)), with: .color(landColor))
+                context.fill(Path(ellipseIn: CGRect(x: p.x - 6, y: p.y - 6, width: 12, height: 12)), with: .color(landColor))
+            }
+        }
+        
+        // 绘制扩展大陆点
+        for point in expandedContinents {
+            let p = project(lat: point.lat, lon: point.lon, spin: spin, tilt: tilt, cx: cx, cy: cy, radius: radius)
+            if p.depth >= 0 {
+                context.fill(Path(ellipseIn: CGRect(x: p.x - 4, y: p.y - 4, width: 8, height: 8)), with: .color(landColor))
             }
         }
     }

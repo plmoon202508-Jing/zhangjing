@@ -157,25 +157,24 @@ object SatelliteShare {
             padL, y, textPaint(accent, 28f * unit, true))
         y += 86f * unit
 
-        // 卫星名称 + 星座
-        c.drawText(look.satellite.name, padL, y, textPaint(Color.parseColor("#0B1A33"), 70f * unit, true))
-        y += 56f * unit
-        c.drawText(look.satellite.constellation.displayName, padL, y, textPaint(accent, 34f * unit, true))
-        y += 78f * unit
+        // 卫星名称 + 星座 + 体验人（一排显示）
+        c.drawText(look.satellite.name, padL, y, textPaint(Color.parseColor("#0B1A33"), 60f * unit, true))
+        val constellationText = look.satellite.constellation.displayName
+        val userNameText = userName?.let { " · 体验人：$it" } ?: ""
+        c.drawText("$constellationText$userNameText", padL + 400f * unit, y, textPaint(accent, 28f * unit, true))
+        y += 70f * unit
 
-        // 体验人姓名
-        userName?.let { name ->
-            c.drawText("体验人：$name", padL, y, textPaint(accent, 28f * unit, true))
-            y += 60f * unit
-        }
-
-        // 信息行
-        val labelPaint = textPaint(Color.parseColor("#6B7C99"), 30f * unit, false)
-        val valuePaint = textPaint(Color.parseColor("#0B1A33"), 40f * unit, true)
-        val lineGap = 84f * unit
-        val infoX2 = padL + 340f * unit
+        // 卫星指标（2排，每排2个）
+        val labelPaint = textPaint(Color.parseColor("#6B7C99"), 28f * unit, false)
+        val valuePaint = textPaint(Color.parseColor("#0B1A33"), 36f * unit, true)
+        val lineGap = 70f * unit
+        val infoX2 = padL + 300f * unit
+        
+        // 第一排
         drawKV(c, "方位角", "${look.azimuthDeg.toInt()}°", padL, infoX2, y, labelPaint, valuePaint); y += lineGap
         drawKV(c, "俯仰角", "${look.elevationDeg.toInt()}°", padL, infoX2, y, labelPaint, valuePaint); y += lineGap
+        
+        // 第二排
         drawKV(c, "斜距", "${look.rangeKm.toInt()} km", padL, infoX2, y, labelPaint, valuePaint); y += lineGap
         drawKV(c, "轨道高度", "${look.altitudeKm.toInt()} km", padL, infoX2, y, labelPaint, valuePaint); y += lineGap + 8f * unit
 

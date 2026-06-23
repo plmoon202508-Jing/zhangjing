@@ -255,11 +255,11 @@ fun ConstellationScreen(
                 }
             }
 
-            // 地球渲染模式切换
+            // 地球渲染模式切换（右下角）
             Row(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 8.dp, end = 12.dp),
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 80.dp, end = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 GlobeModeChip(
@@ -396,28 +396,61 @@ private fun DrawScope.drawGlobe(cx: Float, cy: Float, radius: Float, spin: Float
         }
         GlobeRenderMode.REALISTIC -> {
             // 真实地球模式（使用更明显的海洋和陆地颜色）
-            // 海洋背景
+            // 海洋背景 - 使用更深的蓝色
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFF1E5A8A),  // 海洋亮部
-                        Color(0xFF0D3A6C),  // 海洋中部
-                        Color(0xFF052040)   // 海洋暗部
+                        Color(0xFF0A4A8A),  // 海洋亮部（更蓝）
+                        Color(0xFF052A5A),  // 海洋中部
+                        Color(0xFF021530)   // 海洋暗部
                     ),
                     center = Offset(cx - radius * 0.3f, cy - radius * 0.3f),
                     radius = radius * 1.4f
                 ),
                 radius = radius, center = Offset(cx, cy)
             )
-            // 陆地轮廓（使用更密集的点阵模拟大陆）
-            val landColor = Color(0xFF2D5A3D).copy(alpha = 0.8f)
+            // 陆地轮廓（使用更密集的点阵模拟大陆，增加更多点）
+            val landColor = Color(0xFF1A5A3A).copy(alpha = 0.9f)
+            // 增加更多大陆点，使大陆更明显
+            val expandedContinents = listOf(
+                // 北美 - 更多点
+                listOf(-110.0, 50.0), listOf(-100.0, 45.0), listOf(-90.0, 40.0), listOf(-80.0, 35.0),
+                listOf(-70.0, 30.0), listOf(-60.0, 25.0), listOf(-50.0, 20.0), listOf(-40.0, 15.0),
+                listOf(-30.0, 10.0),
+                // 南美 - 更多点
+                listOf(-75.0, -5.0), listOf(-65.0, -10.0), listOf(-55.0, -15.0), listOf(-45.0, -20.0),
+                listOf(-35.0, -25.0),
+                // 欧洲 - 更多点
+                listOf(0.0, 55.0), listOf(10.0, 50.0), listOf(20.0, 45.0), listOf(30.0, 40.0),
+                listOf(40.0, 35.0),
+                // 非洲 - 更多点
+                listOf(10.0, 35.0), listOf(20.0, 30.0), listOf(30.0, 25.0), listOf(40.0, 20.0),
+                listOf(50.0, 15.0),
+                // 亚洲 - 更多点
+                listOf(60.0, 55.0), listOf(70.0, 50.0), listOf(80.0, 45.0), listOf(90.0, 40.0),
+                listOf(100.0, 35.0), listOf(110.0, 30.0), listOf(120.0, 25.0), listOf(130.0, 20.0),
+                listOf(140.0, 15.0),
+                // 澳大利亚 - 更多点
+                listOf(115.0, -20.0), listOf(125.0, -25.0), listOf(135.0, -30.0), listOf(145.0, -35.0)
+            )
+            
+            // 绘制基础大陆点
             CONTINENT_POINTS.forEach { point ->
                 val lon = point[0]
                 val lat = point[1]
                 val p = project(lat, lon, 1.0, spin, tilt, cx, cy, radius)
                 if (p.unitDepth >= 0f) {
-                    // 绘制更大的点模拟陆地
-                    drawCircle(landColor, radius = 5.0f, center = Offset(p.x, p.y))
+                    drawCircle(landColor, radius = 6.0f, center = Offset(p.x, p.y))
+                }
+            }
+            
+            // 绘制扩展大陆点
+            expandedContinents.forEach { point ->
+                val lon = point[0]
+                val lat = point[1]
+                val p = project(lat, lon, 1.0, spin, tilt, cx, cy, radius)
+                if (p.unitDepth >= 0f) {
+                    drawCircle(landColor, radius = 4.0f, center = Offset(p.x, p.y))
                 }
             }
         }
