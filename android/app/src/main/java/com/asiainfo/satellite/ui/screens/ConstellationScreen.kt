@@ -37,6 +37,12 @@ import com.asiainfo.satellite.data.SatSubPoint
 import com.asiainfo.satellite.data.Satellite
 import com.asiainfo.satellite.data.SatelliteConstellation
 import com.asiainfo.satellite.data.SatelliteRepository
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.sin
 
 // 简化的大陆轮廓数据
 private val CONTINENT_POINTS = listOf(
@@ -47,12 +53,6 @@ private val CONTINENT_POINTS = listOf(
     listOf(100.0, 40.0),    // 亚洲
     listOf(135.0, -25.0)    // 澳大利亚
 )
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlin.math.cos
-import kotlin.math.hypot
-import kotlin.math.sin
 
 private val CONSTELLATION_ORDER = listOf(
     null,                          // 全部
